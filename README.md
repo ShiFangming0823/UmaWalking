@@ -1,6 +1,8 @@
 # UmaWalking
 
-<img src="docs/images/UmaWalking-Cover.jpg" alt="UmaWalking" width="50%" />
+<p align="center">
+  <img src="docs/images/UmaWalking-Cover.jpg" alt="UmaWalking" width="65%" />
+</p>
 
 > **版权与合规 / Copyright / 著作権**
 >
