@@ -1,0 +1,14 @@
+{
+  "Project": "UmaWalking",
+  "Version": "1.0.0",
+  "PreparedOn": "2026-10-22",
+  "LocalPackaging": "Rebuilt with generic DMM default and safe old-placeholder migration",
+  "Published": false,
+  "RedistributionPermissionConfirmed": false,
+  "Reason": "No root license found in pinned UmaViewer upstream; dependency and startup-image rights need maintainer confirmation.",
+  "ContainsGameData": false,
+  "HistoricalDocumentsArchived": 21,
+  "Upstream": "https://github.com/katboi01/UmaViewer",
+  "UpstreamCommit": "07f82e9fa08f23c1cda3a9be3045a09372eae8bb",
+  "DefaultDataPath": "C:\\DMMGames\\Umamusume\\umamusume_Data\\Persistent"
+}

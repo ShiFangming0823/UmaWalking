@@ -1,0 +1,29 @@
+name: Bug report / 错误反馈 / 不具合報告
+description: Describe a problem and attach the copied diagnostic text.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem and steps / 问题和复现步骤 / 現象・再現手順
+      description: Include expected behavior, actual behavior, and frequency.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Copied diagnostics / 诊断文本 / 診断テキスト
+      description: Settings & Diagnostics → Copy diagnostics. Review personal paths before posting. Never attach game data.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境 / 環境
+      description: Windows version, GPU, display scale, monitor layout, FPS and model count.
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Optional screenshots / 可选截图 / スクリーンショット
+      description: Remove personal information; do not upload game assets or extracted packs.

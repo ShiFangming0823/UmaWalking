@@ -1,0 +1,8 @@
+UmaWalking 3.16.0 - redistribution notices
+
+This folder preserves notice texts found in the upstream source tree. It does not
+grant a license to the complete UmaWalking/UmaViewer application. The upstream
+revision has no root license. Redistribution permissions, including Dynamic Bone,
+Unity runtime terms, bundled dependencies and the startup image, require review.
+See docs/License-Status.md and docs/Third-Party-Notices.md.
+No extracted game models, animation bundles or game databases are included.

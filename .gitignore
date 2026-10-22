@@ -1,0 +1,27 @@
+# Track authored source/docs/tools, not generated user binaries and data.
+/UmaDesktop.exe
+/UmaDesktopController.exe
+/UnityPlayer.dll
+/UnityCrashHandler64.exe
+/UmaDesktop_Data/
+/MonoBleedingEdge/
+/DesktopSettings.json
+/release-manifest.json
+/dist/
+/build/
+/work/
+/GameData/
+/DesktopLogs/
+/DesktopCommands/
+**/DesktopLogs/
+**/DesktopCommands/
+**/__pycache__/
+*.pyc
+*.log
+*.pdb
+.vs/
+Library/
+Temp/
+Obj/
+UserSettings/
+.umawalking-backup/
