@@ -6,6 +6,8 @@ internal static class UiText
  internal static string Language="zh";
  private static readonly Dictionary<string,string[]> Texts=new Dictionary<string,string[]>(StringComparer.Ordinal)
  {
+{"桌面兼容模式（通常保持自动）",new[]{"Desktop compatibility (normally Auto)","デスクトップ互換モード（通常はAuto）"}},
+{"模型不显示时可尝试 Root 或 IconView；更改立即生效。",new[]{"If models are invisible, try Root or IconView. Changes apply immediately.","モデルが表示されない場合はRootまたはIconViewをお試しください。変更は即時反映されます。"}},
 {"随系统启动",new[]{"Start with Windows","Windows起動時に自動起動"}},
 {"启动时自动检查更新",new[]{"Check for updates at startup","起動時に更新を確認"}},
 {"检查更新",new[]{"Check for updates","更新を確認"}},
@@ -140,8 +142,12 @@ internal static class UiText
 {"地面 ",new[]{"Ground ","地面 "}},
 {"二维直线",new[]{"2D line","2D直線"}},
 {"三维四点地面",new[]{"3D quadrilateral","3D四点地面"}},
+{"全桌面 · 正交平面",new[]{"Full desktop · Orthographic","デスクトップ全体・平行投影"}},
+{"应用全桌面",new[]{"Apply full desktop","全体モードを適用"}},
+{"已应用全桌面正交平面，角色从四周自由出入。",new[]{"Full-desktop orthographic ground applied. Characters enter and leave from any edge.","デスクトップ全体の平行投影を適用しました。すべての画面端から入退場します。"}},
 {"绘制 / 编辑地面",new[]{"Draw / Edit ground","地面を描画 / 編集"}},
 {"恢复屏幕底部",new[]{"Reset to screen bottom","画面下端に戻す"}},
+{"恢复底部",new[]{"Reset bottom","下端に戻す"}},
 {"UmaDesktop 地面绘制画布",new[]{"UmaDesktop ground canvas","UmaDesktop 地面キャンバス"}},
 {"UmaDesktop · 地面编辑（可拖动此工具条）",new[]{"UmaDesktop · Ground editor (drag this toolbar)","UmaDesktop · 地面編集（ツールバーはドラッグ可能）"}},
 {"保存并应用",new[]{"Save and apply","保存して適用"}},

@@ -30,6 +30,11 @@ internal sealed partial class ControlPanel
                 check(Convert.ToInt32(panel.actorLimitBox.Value)==limit,"Old snapshot cannot overwrite requested limit");
                 panel.state["maxActors"]=limit;panel.PollActorLimit();check(!panel.awaitingActorLimit,"Applied limit acknowledgment "+limit);
             }
+            foreach(string mode in new[]{"Root","IconView","Auto"})
+            {
+                panel.hostModeBox.SelectedItem=mode;var hostCommand=panel.LatestCommand();
+                check(S(hostCommand,"action")=="desktopHost" && S(hostCommand,"desktopHostMode")==mode,"Desktop host mode command "+mode);
+            }
             panel.state["frameRate"]=15;panel.state["msaaSamples"]=1;panel.state["useFxaa"]=false;panel.optionsStateInitialized=false;panel.PollOptions();
             check(Convert.ToInt32(panel.fpsBox.SelectedItem)==15&&!panel.aaBox.Checked,"Initial panel reflects active command-line performance overrides");
             foreach(bool enabled in new[]{true,false}) {panel.avoidanceBox.Checked=enabled;var option=panel.LatestCommand();check(S(option,"action")=="avoidance"&&Convert.ToBoolean(option["avoid3DCollisions"])==enabled,"Avoidance checkbox command");}

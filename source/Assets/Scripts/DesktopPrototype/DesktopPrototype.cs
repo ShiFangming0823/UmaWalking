@@ -43,7 +43,7 @@ namespace UmaDesktop
         }
         [Serializable] private sealed class Command
         {
-            public string action, mode, costumeId, dataPath, language, requestId;
+            public string action, mode, costumeId, dataPath, language, requestId, desktopHostMode;
             public int frameRate,maxActors;public bool antiAliasing,avoid3DCollisions;
             public float modelSizeScale,groundU,groundV,poseYaw;
             public DesktopGroundConfig ground;
@@ -65,12 +65,13 @@ namespace UmaDesktop
             public string avoidanceState;public int avoidanceFrames,avoidanceReversals;public float avoidanceRadius;
             public int boundaryReplans;public float groundTargetX,groundTargetY;
             public int groundIndex, groundStage,poseVersion;public float groundU,groundV,groundDepthScale,portalOpacity,groundFitScale,canvasFootViewport,calibratedFloorY,soleClearancePixels,footprintRadiusX,footprintRadiusY;public GroundPoint[] footContacts,actualShoePixels;
+            public bool orthographicDesktop;public float facingYaw,requestedGroundYaw,avoidanceVelocityX,avoidanceVelocityY;public float viewElevation;public int entranceEdge,exitEdge;public GroundPoint[] navigationRegion;
             public float walkSpeedFactor, runSpeedFactor, clearanceHalfWidth, clearanceX, clearanceOffset, specialRetryDistance, movementFraction;
             public string displayName, name, costumeId, costumeName, phase, state, clip, expression, expressionAction;
             public int expressionSelections;public bool expressionOverride, expressionMatchesPreset;public int[] expressionIndices;
             public float screenX, groundY, height, speed, playbackRate, opacity, specialElapsed, specialDuration, specialCutoff;
             public long nativeWindow, desktopParent;
-            public bool desktopAttached, windowVisible;
+            public bool desktopAttached, windowVisible;public int lastNativeError;
         }
         [Serializable] private sealed class Snapshot
         {
@@ -81,7 +82,9 @@ namespace UmaDesktop
             public string utc, error, message, mode, populationState;
             public int[] includeIds, excludeIds;
             public bool paused, manualPaused, desktopPaused, desktopCovered, desktopAvailable, loading, namesUnique, controllerRunning, testIgnoresOcclusion, mouseInputInstalled, windowManagementActive, switchEventHookInstalled;
-            public long desktopHost; public int coveringWindows;
+            public long desktopHost,desktopChildHost,desktopIconView; public int coveringWindows;
+            public string desktopHostMode,desktopHostStrategy;
+            public DesktopEnvironment.HostInfo desktopRootInfo,desktopChildInfo,desktopIconViewInfo;
             public float fps, nextEventIn, simulationSeconds, groundBottomPadding, specialTrim, modelSizeScale;
             public PendingEntryExport[] pendingEntries;
             public int processId;
@@ -401,6 +404,7 @@ namespace UmaDesktop
             if(!ready || error!=null || EffectivePaused) return;
             SortGroundWindows();
             foreach(var actor in actors) { actor.TickPose(frameDelta); actor.RenderFrame(); }
+            RecordHeadingAudit();
 
         }
         private void RefreshDesktopVisibility(bool force)
@@ -408,13 +412,14 @@ namespace UmaDesktop
             float realtime=Time.realtimeSinceStartup;
             if(!force && realtime<nextVisibility) return;
             nextVisibility=realtime+0.25f;
+            DesktopEnvironment.HostMode=settings==null?"Auto":settings.DesktopHostMode;
             DesktopEnvironment.Poll();
             bool stop=!visualAudit && (!DesktopEnvironment.Available || DesktopEnvironment.Covered && !testIgnoreOcclusion);
             bool changed=!visibilityKnown || stop!=desktopPaused;
             desktopPaused=stop;visibilityKnown=true;
             foreach(var actor in actors) actor.Overlay.SetDesktopVisible(!desktopPaused);
             Application.targetFrameRate=EffectivePaused && !expressionAudit ? 2 : settings.FrameRate;
-            if(changed) Record("Desktop visibility: paused="+desktopPaused+" covered="+DesktopEnvironment.Covered+" host="+DesktopEnvironment.Host.ToInt64());
+            if(changed) Record("Desktop visibility: paused="+desktopPaused+" covered="+DesktopEnvironment.Covered+" host="+DesktopEnvironment.Host.ToInt64()+" childHost="+DesktopEnvironment.ChildHost.ToInt64()+" strategy="+DesktopEnvironment.SelectedHostMode);
         }
         private bool CanStartAutomaticSpecial(DesktopActor actor)
         {
@@ -571,7 +576,7 @@ namespace UmaDesktop
             var actor=actors.FirstOrDefault(a=>a.Token==c.token) ?? actors.FirstOrDefault();
             switch(c.action)
             {
-                case "actorLimit": case "avoidance": case "performance": case "language": case "dataPath": ApplyOptions(c);break;
+                case "desktopHost": case "actorLimit": case "avoidance": case "performance": case "language": case "dataPath": ApplyOptions(c);break;
                 case "groundEditBegin": groundEditing=true;break;
                 case "groundEditEnd": groundEditing=false;break;
                 case "ground": ApplyGround(c.ground);break;
@@ -597,6 +602,7 @@ namespace UmaDesktop
                     ReconcileDuplicateNames();
                     message="角色池已更新；可出场 "+TargetCount+" 只。";Record("Filter "+settings.SelectionMode+" eligible="+Eligible().Count);break;
                 case "capture": foreach(var a in actors)a.CaptureFile=Path.Combine(logDirectory,"capture-"+a.Token+".png");break;
+                case "testHeadingAudit": if(testMode)ControlHeadingAudit(c.mode);break;
                 case "testPointerDown": if(testMode && actor!=null)actor.Overlay.RoutePointer(DesktopPointerKind.Down,(int)c.groundU,(int)c.groundV,false);break;
                 case "testPointerMove": if(testMode && actor!=null)actor.Overlay.RoutePointer(DesktopPointerKind.Move,(int)c.groundU,(int)c.groundV,true);break;
                 case "testPointerUp": if(testMode && actor!=null)actor.Overlay.RoutePointer(DesktopPointerKind.Up,(int)c.groundU,(int)c.groundV,true);break;
@@ -608,7 +614,7 @@ namespace UmaDesktop
                     if(testMode && !busy){var ch=catalog.Characters.FirstOrDefault(x=>x.Entry.Id==c.characterId);if(ch!=null)StartCoroutine(Spawn(ch,c.costumeId??"00",actor));}
                     break;
                 case "testNavigation":
-                    if(testMode && actor!=null && settings.Ground.mode=="Planes" && c.navigationTarget!=null && c.groundIndex>=0 && c.groundIndex<settings.Ground.surfaces.Length)
+                    if(testMode && actor!=null && (settings.Ground.mode=="Planes" || settings.Ground.mode=="Desktop") && c.navigationTarget!=null && c.groundIndex>=0 && c.groundIndex<(settings.Ground.mode=="Desktop"?1:settings.Ground.surfaces.Length))
                     {
                         CancelPair(actor);actor.AssignGround(settings.Ground,c.groundIndex,random);
                         actor.Ground.PlaceForDrag(new GroundVector(c.groundU,c.groundV));
@@ -672,7 +678,7 @@ namespace UmaDesktop
         private void WriteStatus()
         {
             if(logDirectory==null) return;
-            var state=new Snapshot {includeVariants=IncludeVariants,occupancyValid=OccupancyValid,costumesUnique=actors.GroupBy(a=>DesktopRules.NameKey(a.Character.Entry.Name)+"\n"+a.Costume.Id).All(g=>g.Count()==1),activeDataPath=settings==null?"":settings.DataPath,configuredDataPath=persisted==null?"":persisted.DataPath,language=settings==null?"zh":settings.UiLanguage,optionsAck=optionsAck,frameRate=settings==null?30:settings.FrameRate,useFxaa=settings!=null && settings.UseFxaa,gpu=SystemInfo.graphicsDeviceName,graphicsApi=SystemInfo.graphicsDeviceType.ToString(),operatingSystem=SystemInfo.operatingSystem,applicationVersion=DesktopProduct.Version,maxActors=settings==null?6:settings.MaxActors,activeCount=actors.Count(a=>a.Phase!=DesktopPhase.Exiting),retiringCount=actors.Count(a=>a.Phase==DesktopPhase.Exiting),overLimitCount=settings==null?0:Math.Max(0,actors.Count-settings.MaxActors),avoid3DCollisions=settings!=null&&settings.Avoid3DCollisions,pendingEntries=ExportPendingEntries(),ground=settings==null?new DesktopGroundConfig():settings.Ground,groundEditing=groundEditing,processId=Process.GetCurrentProcess().Id,modelSizeScale=settings==null?1:settings.ModelSizeScale,utc=DateTime.UtcNow.ToString("o"),error=error,message=message,paused=EffectivePaused,testIgnoresOcclusion=testIgnoreOcclusion,manualPaused=paused,desktopPaused=desktopPaused,desktopCovered=DesktopEnvironment.Covered,desktopAvailable=DesktopEnvironment.Available,desktopHost=DesktopEnvironment.Host.ToInt64(),coveringWindows=DesktopEnvironment.CoveringWindows,loading=busy,mouseInputInstalled=WindowsOverlay.InputInstalled,windowManagementActive=DesktopEnvironment.WindowManagementActive,switchEventHookInstalled=DesktopEnvironment.SwitchEventHookInstalled,
+            var state=new Snapshot {includeVariants=IncludeVariants,occupancyValid=OccupancyValid,costumesUnique=actors.GroupBy(a=>DesktopRules.NameKey(a.Character.Entry.Name)+"\n"+a.Costume.Id).All(g=>g.Count()==1),activeDataPath=settings==null?"":settings.DataPath,configuredDataPath=persisted==null?"":persisted.DataPath,language=settings==null?"zh":settings.UiLanguage,optionsAck=optionsAck,frameRate=settings==null?30:settings.FrameRate,useFxaa=settings!=null && settings.UseFxaa,gpu=SystemInfo.graphicsDeviceName,graphicsApi=SystemInfo.graphicsDeviceType.ToString(),operatingSystem=SystemInfo.operatingSystem,applicationVersion=DesktopProduct.Version,maxActors=settings==null?6:settings.MaxActors,activeCount=actors.Count(a=>a.Phase!=DesktopPhase.Exiting),retiringCount=actors.Count(a=>a.Phase==DesktopPhase.Exiting),overLimitCount=settings==null?0:Math.Max(0,actors.Count-settings.MaxActors),avoid3DCollisions=settings!=null&&settings.Avoid3DCollisions,pendingEntries=ExportPendingEntries(),ground=settings==null?new DesktopGroundConfig():settings.Ground,groundEditing=groundEditing,processId=Process.GetCurrentProcess().Id,modelSizeScale=settings==null?1:settings.ModelSizeScale,utc=DateTime.UtcNow.ToString("o"),error=error,message=message,paused=EffectivePaused,testIgnoresOcclusion=testIgnoreOcclusion,manualPaused=paused,desktopPaused=desktopPaused,desktopCovered=DesktopEnvironment.Covered,desktopAvailable=DesktopEnvironment.Available,desktopHost=DesktopEnvironment.Host.ToInt64(),desktopChildHost=DesktopEnvironment.ChildHost.ToInt64(),desktopIconView=DesktopEnvironment.IconView.ToInt64(),desktopHostMode=settings==null?"Auto":settings.DesktopHostMode,desktopHostStrategy=DesktopEnvironment.SelectedHostMode,desktopRootInfo=DesktopEnvironment.Describe(DesktopEnvironment.Host),desktopChildInfo=DesktopEnvironment.Describe(DesktopEnvironment.ChildHost),desktopIconViewInfo=DesktopEnvironment.Describe(DesktopEnvironment.IconView),coveringWindows=DesktopEnvironment.CoveringWindows,loading=busy,mouseInputInstalled=WindowsOverlay.InputInstalled,windowManagementActive=DesktopEnvironment.WindowManagementActive,switchEventHookInstalled=DesktopEnvironment.SwitchEventHookInstalled,
                 count=actors.Count,targetCount=catalog==null?0:TargetCount,charactersLoaded=loads,departures=departures,clickSpecials=clickedSpecials,
                 specialCount=specials,trimmedSpecials=trimmed,gaitCount=gaits,interactions=interactions,encounterRolls=encounterRolls,interactionAccepted=drawsAccepted,
                 mode=settings==null?"All":settings.SelectionMode,includeIds=settings==null?new int[0]:settings.IncludeIds,excludeIds=settings==null?new int[0]:settings.ExcludeIds,
@@ -681,11 +687,11 @@ namespace UmaDesktop
                 populationState=busy?"Loading":population!=null && population.AwaitingExit?"WaitingForExit":actors.Count>0 && actors.Count>=TargetCount?"FullHold":"WaitingForEntry",
                 nextEventIn=population==null?0:Mathf.Max(0,(float)population.NextAt-now),groundBottomPadding=settings==null?0:settings.GroundBottomPaddingPixels,
                 specialTrim=settings==null?0:settings.SpecialEndTrimSeconds,outlineWidth=settings==null?0:settings.OutlineWidth,msaaSamples=settings==null?0:settings.MsaaSamples,
-                actors=actors.Select(a=>new ActorState {avoidanceState=a.AvoidanceState,avoidanceFrames=a.AvoidanceFrames,avoidanceReversals=a.AvoidanceReversals,avoidanceRadius=a.AvoidanceRadius,manualEntry=a.ManualEntry,boundaryReplans=a.Ground==null?0:a.Ground.BoundaryReplans,groundTargetX=a.Ground==null?0:(float)a.Ground.Screen(a.Ground.Target).x,groundTargetY=a.Ground==null?0:(float)a.Ground.Screen(a.Ground.Target).y,actualShoePixels=a.ActualShoePixels().Select(p=>new GroundPoint((float)p.x,(float)p.y)).ToArray(),poseVersion=a.PoseTestVersion,groundFitScale=a.GroundFitScale,canvasFootViewport=a.CanvasFootViewport,calibratedFloorY=a.CalibratedFloorY,soleClearancePixels=a.SoleClearancePixels,footprintRadiusX=a.FootprintRadiusX,footprintRadiusY=a.FootprintRadiusY,footContacts=a.ProjectedFootContacts().Select(p=>new GroundPoint((float)p.x,(float)p.y)).ToArray(),pointerHeld=a.PointerHeld,dragging=a.Dragging,motionHeld=a.MotionHeld,animationTime=a.Player.TimeSeconds,groundIndex=a.GroundIndex,groundStage=a.Ground==null?-1:a.Ground.Stage,groundU=a.Ground==null?0:(float)a.Ground.Position.x,groundV=a.Ground==null?0:(float)a.Ground.Position.y,groundDepthScale=a.GroundDepthScale,portalOpacity=a.PortalOpacity,token=a.Token,ordinal=a.Ordinal,characterId=a.Character.Entry.Id,name=a.Character.Entry.Name,displayName=DesktopCharacterNames.Get(a.Character.Entry.Id,a.Character.Entry.Name,settings.UiLanguage),
+                actors=actors.Select(a=>new ActorState {orthographicDesktop=a.DesktopPlane,facingYaw=a.FacingYaw,requestedGroundYaw=a.RequestedGroundYaw,avoidanceVelocityX=(float)a.AvoidanceVelocity.x,avoidanceVelocityY=(float)a.AvoidanceVelocity.y,viewElevation=a.ViewElevation,entranceEdge=a.Ground==null?-1:a.Ground.EntranceEdge,exitEdge=a.Ground==null?-1:a.Ground.ExitEdge,navigationRegion=a.Ground==null||a.Ground.DesktopRegion==null?new GroundPoint[0]:a.Ground.DesktopRegion.Select(p=>new GroundPoint((float)p.x,(float)p.y)).ToArray(),avoidanceState=a.AvoidanceState,avoidanceFrames=a.AvoidanceFrames,avoidanceReversals=a.AvoidanceReversals,avoidanceRadius=a.AvoidanceRadius,manualEntry=a.ManualEntry,boundaryReplans=a.Ground==null?0:a.Ground.BoundaryReplans,groundTargetX=a.Ground==null?0:(float)a.Ground.Screen(a.Ground.Target).x,groundTargetY=a.Ground==null?0:(float)a.Ground.Screen(a.Ground.Target).y,actualShoePixels=a.ActualShoePixels().Select(p=>new GroundPoint((float)p.x,(float)p.y)).ToArray(),poseVersion=a.PoseTestVersion,groundFitScale=a.GroundFitScale,canvasFootViewport=a.CanvasFootViewport,calibratedFloorY=a.CalibratedFloorY,soleClearancePixels=a.SoleClearancePixels,footprintRadiusX=a.FootprintRadiusX,footprintRadiusY=a.FootprintRadiusY,footContacts=a.ProjectedFootContacts().Select(p=>new GroundPoint((float)p.x,(float)p.y)).ToArray(),pointerHeld=a.PointerHeld,dragging=a.Dragging,motionHeld=a.MotionHeld,animationTime=a.Player.TimeSeconds,groundIndex=a.GroundIndex,groundStage=a.Ground==null?-1:a.Ground.Stage,groundU=a.Ground==null?0:(float)a.Ground.Position.x,groundV=a.Ground==null?0:(float)a.Ground.Position.y,groundDepthScale=a.GroundDepthScale,portalOpacity=a.PortalOpacity,token=a.Token,ordinal=a.Ordinal,characterId=a.Character.Entry.Id,name=a.Character.Entry.Name,displayName=DesktopCharacterNames.Get(a.Character.Entry.Id,a.Character.Entry.Name,settings.UiLanguage),
                     costumeId=a.Costume.Id,costumeName=a.Costume.Name,costumeCategory=a.Costume.Category,phase=a.Phase.ToString(),state=a.Interaction?"Interaction":a.Behavior.ToString(),
                     expression=a.Expressions.Label,expressionAction=a.Expressions.Action.ToString(),expressionSelections=a.Expressions.Selections,expressionOverride=a.Expressions.OverrideActive,expressionMatchesPreset=a.Expressions.MatchesPreset,expressionIndices=a.Expressions.ActualIndices,clip=a.Player.Name,screenX=a.X,groundY=a.GroundY,height=a.Height,direction=a.Direction,speed=a.MoveSpeed,playbackRate=a.PlaybackRate,opacity=a.Opacity,
                     specialElapsed=a.SpecialElapsed,specialDuration=a.SpecialDuration,specialCutoff=a.SpecialCutoff,presentedFrames=a.Overlay.FramesPresented,
-                    specialDeferrals=a.SpecialDeferrals,automaticSpecials=a.AutomaticSpecials,automaticSpecial=a.AutomaticSpecial,specialPending=a.Schedule.SpecialPending,walkSpeedFactor=a.WalkSpeedFactor,runSpeedFactor=a.RunSpeedFactor,clearanceHalfWidth=a.ClearanceHalfWidth,clearanceX=a.ClearanceX,clearanceOffset=a.ClearanceOffset,specialRetryDistance=a.SpecialRetryDistance,movementFraction=a.MovementFraction,facialEvaluations=a.Player.FacialEvaluations,nativeWindow=a.Overlay.Handle.ToInt64(),desktopParent=a.Overlay.DesktopParent,desktopAttached=a.Overlay.DesktopAttached,windowVisible=a.Overlay.DesktopVisible}).ToArray()};
+                    specialDeferrals=a.SpecialDeferrals,automaticSpecials=a.AutomaticSpecials,automaticSpecial=a.AutomaticSpecial,specialPending=a.Schedule.SpecialPending,walkSpeedFactor=a.WalkSpeedFactor,runSpeedFactor=a.RunSpeedFactor,clearanceHalfWidth=a.ClearanceHalfWidth,clearanceX=a.ClearanceX,clearanceOffset=a.ClearanceOffset,specialRetryDistance=a.SpecialRetryDistance,movementFraction=a.MovementFraction,facialEvaluations=a.Player.FacialEvaluations,nativeWindow=a.Overlay.Handle.ToInt64(),desktopParent=a.Overlay.DesktopParent,desktopAttached=a.Overlay.DesktopAttached,windowVisible=a.Overlay.DesktopVisible,lastNativeError=a.Overlay.LastNativeError}).ToArray()};
             string target=Path.Combine(logDirectory,"state.json"), temporary=target+".tmp";
             try
             {

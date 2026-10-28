@@ -18,6 +18,7 @@ namespace UmaDesktop
         public bool Ready { get; private set; }
         public float Opacity = 1;
         public int Clicks, FramesPresented;
+        public int LastNativeError {get;private set;}
         public void RaiseWithinDesktop() {if(window!=IntPtr.Zero)SetWindowPos(window,IntPtr.Zero,0,0,0,0,0x0001|0x0002|0x0010);}
         public IntPtr Handle { get { return window; } }
         private IntPtr window, memoryDC, bitmap, oldBitmap, bits;
@@ -38,7 +39,7 @@ namespace UmaDesktop
         {
             get { uint pid;return window!=IntPtr.Zero && IsWindow(window) && GetWindowThreadProcessId(window,out pid)!=0 && pid==processId; }
         }
-        public bool DesktopAttached { get { return Ready && OwnsWindow && GetParent(window)==DesktopEnvironment.Host; } }
+        public bool DesktopAttached { get { return Ready && OwnsWindow && GetParent(window)==DesktopEnvironment.ChildHost; } }
         public bool DesktopVisible { get { return DesktopAttached && IsWindowVisible(window); } }
         public long DesktopParent { get { return DesktopAttached ? GetParent(window).ToInt64() : 0; } }
         private static readonly Dictionary<IntPtr, WindowsOverlay> owners = new Dictionary<IntPtr, WindowsOverlay>();
@@ -98,12 +99,12 @@ namespace UmaDesktop
             Marshal.Copy(buffer, 0, bits, buffer.Length);
             var destination = new POINT { x = x, y = y };
             // Layered WS_CHILD destinations use the parent client coordinate space.
-            ScreenToClient(desktopParent,ref destination);
+            if(!ScreenToClient(desktopParent,ref destination)){LastNativeError=Marshal.GetLastWin32Error();return;}
             var source = new POINT(); var dimensions = new SIZE { cx = size, cy = size };
             var blend = new BLENDFUNCTION { BlendOp = 0, SourceConstantAlpha = (byte)Mathf.RoundToInt(Mathf.Clamp01(Opacity) * 255), AlphaFormat = 1 };
             if (!UpdateLayeredWindow(window, IntPtr.Zero, ref destination, ref dimensions, memoryDC,
                 ref source, 0, ref blend, 2))
-                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "UpdateLayeredWindow failed.");
+                {LastNativeError=Marshal.GetLastWin32Error();throw new System.ComponentModel.Win32Exception(LastNativeError, "UpdateLayeredWindow failed.");}
 #endif
             hasPixels=true;
             if(desktopVisible && DesktopAttached && !IsWindowVisible(window)) ShowWindow(window,4); // SW_SHOWNOACTIVATE
@@ -116,7 +117,7 @@ namespace UmaDesktop
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             if (Ready && DesktopAttached)
             {
-                var point=new POINT {x=x,y=y};ScreenToClient(desktopParent,ref point);
+                var point=new POINT {x=x,y=y};if(!ScreenToClient(desktopParent,ref point)){LastNativeError=Marshal.GetLastWin32Error();return;}
                 SetWindowPos(window,IntPtr.Zero,point.x,point.y,0,0,0x0001|0x0004|0x0010);
             }
 #endif
@@ -141,7 +142,7 @@ namespace UmaDesktop
         {
             desktopVisible=value && DesktopEnvironment.Available;
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            IntPtr host=DesktopEnvironment.Host;
+            IntPtr host=DesktopEnvironment.ChildHost;
             bool valid=OwnsWindow;
             if(valid && GetParent(window)!=host) {ShowWindow(window,0);owners.Remove(window);DestroyWindow(window);window=IntPtr.Zero;valid=false;hasPixels=false;}
             if(!valid && desktopVisible)
@@ -155,7 +156,8 @@ namespace UmaDesktop
                     window=CreateWindowEx(0x08080080,ClassName,title,0x40000000,0,0,size,size,host,IntPtr.Zero,GetModuleHandle(null),IntPtr.Zero);
                 }
                 finally {DesktopEnvironment.RestoreDpiContext(previous);}
-                if(window==IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(),"Could not attach pet to desktop.");
+                if(window==IntPtr.Zero){LastNativeError=Marshal.GetLastWin32Error();throw new System.ComponentModel.Win32Exception(LastNativeError,"Could not attach pet to desktop.");}
+                LastNativeError=0;
                 owners[window]=this;hasPixels=false;
                 Move(x,y);
             }
@@ -273,7 +275,7 @@ namespace UmaDesktop
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h,out uint processId);
         [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr h);
         [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr h);
-        [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr h,ref POINT point);
+        [DllImport("user32.dll",SetLastError=true)] private static extern bool ScreenToClient(IntPtr h,ref POINT point);
         [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
         [DllImport("user32.dll")] private static extern int GetSystemMetrics(int value);
         [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action,uint parameter,out RECT rect,uint update);

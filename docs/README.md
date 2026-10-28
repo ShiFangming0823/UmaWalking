@@ -47,3 +47,9 @@ These preserve earlier changes and measurements; they are not a promise that eve
 - [Default game-data prefill](Default-Data-Path.md)
 
 - [Initial 1.0.0 checks](archive/Publication-Checks-Initial-1.0.0.md)
+
+- [Version 1.1.0 release notes](Release-1.1.0.md)
+- [Full desktop orthographic ground](development/Full-Desktop-Mode.md)
+- [Explorer desktop compatibility](development/Desktop-Compatibility.md)
+
+- [Version 1.1.0 verification](Release-Checks-1.1.0.md)

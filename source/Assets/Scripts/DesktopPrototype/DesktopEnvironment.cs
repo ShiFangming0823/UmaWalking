@@ -78,7 +78,35 @@ namespace UmaDesktop
     }
     public static class DesktopEnvironment
     {
+        // Host is always a top-level Explorer window; coverage enumeration must stop here.
         public static IntPtr Host { get; private set; }
+        public static IntPtr IconView { get; private set; }
+        public static IntPtr ChildHost { get; private set; }
+        public static string HostMode = "Auto";
+        public static string SelectedHostMode { get; private set; }
+        // A capability heuristic, not an OS version or a guarantee of compositor visibility.
+        public static string SelectHostMode(string mode,long rootExStyle,bool iconVisible)
+        {
+            if(mode=="Root")return "Root";
+            if(mode=="IconView")return "IconView";
+            return (rootExStyle&0x00200000L)!=0 && iconVisible ? "IconView" : "Root";
+        }
+        [Serializable] public sealed class HostInfo
+        {
+            public long handle,style,exStyle,dpiContext;public uint processId,dpi;
+            public string windowClass;public bool visible;public int left,top,right,bottom;
+        }
+        public static HostInfo Describe(IntPtr h)
+        {
+            var info=new HostInfo {handle=h.ToInt64(),windowClass=""};
+            if(h==IntPtr.Zero || !IsWindow(h))return info;
+            var name=new StringBuilder(256);GetClassName(h,name,name.Capacity);info.windowClass=name.ToString();
+            GetWindowThreadProcessId(h,out info.processId);info.visible=IsWindowVisible(h);
+            info.style=GetWindowLongPtr(h,-16).ToInt64();info.exStyle=GetWindowLongPtr(h,-20).ToInt64();
+            info.dpi=GetDpiForWindow(h);info.dpiContext=GetWindowDpiAwarenessContext(h).ToInt64();
+            RECT rect;if(GetWindowRect(h,out rect)){info.left=rect.left;info.top=rect.top;info.right=rect.right;info.bottom=rect.bottom;}
+            return info;
+        }
         public static bool Covered { get; private set; }
         public static bool Available { get; private set; }
         public static int CoveringWindows { get; private set; }
@@ -105,13 +133,19 @@ namespace UmaDesktop
             if(shell!=IntPtr.Zero) GetWindowThreadProcessId(shell,out shellPid);
             IntPtr found=IntPtr.Zero;
             EnumWindows(delegate(IntPtr h,IntPtr unused) {
-                if(FindWindowEx(h,IntPtr.Zero,"SHELLDLL_DefView",null)==IntPtr.Zero) return true;
+                var cls=new StringBuilder(256);GetClassName(h,cls,cls.Capacity);
+                if(cls.ToString()!="Progman" && cls.ToString()!="WorkerW")return true;
+                IntPtr view=FindWindowEx(h,IntPtr.Zero,"SHELLDLL_DefView",null);uint viewPid;
+                if(view==IntPtr.Zero || GetWindowThreadProcessId(view,out viewPid)==0 || viewPid!=shellPid) return true;
                 uint pid;GetWindowThreadProcessId(h,out pid);
                 if(shellPid!=0 && pid==shellPid) {found=h;return false;} return true;
             },IntPtr.Zero);
             Host=found;
+            IconView=Host==IntPtr.Zero?IntPtr.Zero:FindWindowEx(Host,IntPtr.Zero,"SHELLDLL_DefView",null);
+            SelectedHostMode=SelectHostMode(HostMode,Host==IntPtr.Zero?0:GetWindowLongPtr(Host,-20).ToInt64(),IconView!=IntPtr.Zero&&IsWindowVisible(IconView));
+            ChildHost=SelectedHostMode=="IconView"?IconView:Host;
             RECT work;
-            Available=Host!=IntPtr.Zero && IsWindowVisible(Host) && SystemParametersInfo(0x30,0,out work,0);
+            Available=Host!=IntPtr.Zero && ChildHost!=IntPtr.Zero && IsWindowVisible(Host) && IsWindowVisible(ChildHost) && SystemParametersInfo(0x30,0,out work,0);
             // Definite assignment also makes failure leave no stale screen bounds.
             if(!Available) {Covered=true;WindowManagementActive=false;CoveringWindows=0;WorkArea=new DesktopRectangle();coverageState=new DesktopCoverageState();return;}
             SystemParametersInfo(0x30,0,out work,0);
@@ -172,12 +206,14 @@ namespace UmaDesktop
         [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr h,StringBuilder text,int count);
         public static IntPtr EnterHostDpiContext()
         {
-            return Host==IntPtr.Zero ? IntPtr.Zero : SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(Host));
+            return ChildHost==IntPtr.Zero ? IntPtr.Zero : SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(ChildHost));
         }
         public static void RestoreDpiContext(IntPtr previous)
         { if(previous!=IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
         [StructLayout(LayoutKind.Sequential)] private struct RECT {public int left,top,right,bottom;}
         [DllImport("user32.dll")] private static extern IntPtr GetShellWindow();
+        [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr h);
+        [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
         [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr p,IntPtr after,string cls,string title);
         [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc callback,IntPtr value);
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);

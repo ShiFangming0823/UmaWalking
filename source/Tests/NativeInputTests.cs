@@ -28,6 +28,7 @@ class NativeInputTests {
  }
  static void DesktopHost(IntPtr host) {
   typeof(DesktopEnvironment).GetProperty("Host").SetValue(null,host,null);
+  typeof(DesktopEnvironment).GetProperty("ChildHost").SetValue(null,host,null);
   typeof(DesktopEnvironment).GetProperty("Available").SetValue(null,true,null);
  }
  [STAThread] static void Main() {try{Run();}catch(Exception e){Console.WriteLine("EXCEPTION "+e.GetType().FullName+" "+e.Message+" STACK "+e.StackTrace);Environment.Exit(1);}} static void Run() {

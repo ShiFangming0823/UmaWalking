@@ -1,8 +1,8 @@
 {
   "Project": "UmaWalking",
-  "Version": "1.0.0",
-  "PreparedOn": "2026-10-22",
-  "LocalPackaging": "Rebuilt with generic DMM default and safe old-placeholder migration",
+  "Version": "1.1.0",
+  "PreparedOn": "2026-10-28",
+  "LocalPackaging": "Orthographic full-desktop mode and adaptive Explorer child-host compatibility; local Windows 10 regression tested; reporting Win11 24H2 requires retest",
   "Published": false,
   "RedistributionPermissionConfirmed": false,
   "Reason": "No root license found in pinned UmaViewer upstream; dependency and startup-image rights need maintainer confirmation.",

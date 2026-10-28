@@ -24,14 +24,16 @@ Setup clones into `work/UmaViewer`, verifies the pinned commit and applies `sour
 
 Build output defaults to `build/UmaWalking`. Unity generates the desktop scene, builds `UmaDesktop.exe` and its companion files, and the controller compiler creates `UmaDesktopController.exe`. Internal names are retained for runtime and restart compatibility. `DesktopSettings.json` can be copied from the publication's default config when testing a fresh build. Keep every generated runtime sibling together.
 
-The packaged overlay replaces the original machine-specific default paths with publication-relative build paths and the generic DMM data-path default; runtime logic is unchanged. The packaged controller and Unity runtime were rebuilt for public version 1.0.0. This is not a claim of bit-for-bit reproducible output from every machine.
+The packaged overlay replaces the original machine-specific default paths with publication-relative build paths and the generic DMM data-path default; runtime logic is unchanged. The packaged controller and Unity runtime were rebuilt for public version 1.1.0. This is not a claim of bit-for-bit reproducible output from every machine.
 
 ## Tests
 
-`source/Test-Logic.ps1` compiles and runs ten independent logic suites without Unity or game data. `source/Build-Controller.ps1 -OutputDirectory <empty-test-output>` validates controller compilation. Python integration tests under `source/Tests` accept `--build-directory`; use a disposable runtime copy with a selected local data path. Several tests intentionally adjust settings, inject desktop input, create transient windows, or restart the test process. Do not run them against a user's normal application session.
+`source/Test-Logic.ps1` compiles and runs twelve independent logic suites without Unity or game data. `source/Build-Controller.ps1 -OutputDirectory <empty-test-output>` validates controller compilation. Python integration tests under `source/Tests` accept `--build-directory`; use a disposable runtime copy with a selected local data path. Several tests intentionally adjust settings, inject desktop input, create transient windows, or restart the test process. Do not run them against a user's normal application session.
 
 `tools/Verify-Publication.py <publication-root>` checks manifest hashes, required siblings, default settings and filename/data exclusions. It does not replace real visual desktop tests or certify redistribution rights.
 
 See [Architecture.md](Architecture.md), the root [AGENTS.md](../../AGENTS.md) and the historical [Source-Guide.md](Source-Guide.md) for implementation context. Private diagnostic logs, former fixture snapshots and actual game indexes are not distributed.
 
 Run `source/Test-Profile.ps1` for upgrade storage tests. The controller `--release-selftest --root <disposable-fixture>` covers release comparison, skip behavior, startup service injection and localized update dialogs. Never write a real Startup Run entry in UI fixtures. Set a disposable `UMA_WALKING_PROFILE` for real normal-mode upgrade tests. Use `tools/Set-Version.ps1` before a future build and `tools/Package-Release.py` after staging sanitized defaults and the complete runtime.
+
+Additional native integration fixtures: `source/Test-DesktopHost.ps1` exercises root/leaf host selection and leaf recreation. The real-player `verify_visibility.py` checks actual Explorer Root/IconView/Auto parenting and coverage; `Test-TransientVisibility.ps1` checks window-management exceptions.

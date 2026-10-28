@@ -53,5 +53,6 @@
   "GroundRightHeight": 0.8399999737739563,
   "FacingAngle": 65.0,
   "CameraElevation": 10.0,
-  "RandomSeed": 0
+  "RandomSeed": 0,
+  "DesktopHostMode": "Auto"
 }

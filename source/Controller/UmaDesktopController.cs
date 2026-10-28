@@ -24,6 +24,7 @@ internal static class Program
             if(args.Contains("--restart")) {DesktopRestart.Run(args);return;}
             if(args.Contains("--release-selftest")){ControlPanel.RunReleaseTests(root);return;}
             if(args.Contains("--ground-selftest")) {GroundEditor.RunTests(root);return;}
+            if(args.Contains("--desktop-ground-selftest")) {ControlPanel.RunDesktopGroundTests(root);return;}
             if(args.Contains("--switch-data-test")){ControlPanel.RunDataSwitch(root,parent,args[Array.IndexOf(args,"--destination")+1]);return;}
             if(args.Contains("--names-selftest")){ControlPanel.RunNameTests(root);return;}
             if(args.Contains("--options-selftest")){ControlPanel.RunOptionsTests(root);return;}
@@ -157,7 +158,7 @@ internal sealed partial class ControlPanel : Form
             {
                 foreach(var id in ArrayOf(state["includeIds"]))included.Add(Convert.ToInt32(id));foreach(var id in ArrayOf(state["excludeIds"]))excluded.Add(Convert.ToInt32(id));
                 string mode=S(state,"mode");include.Checked=mode=="Include";exclude.Checked=mode=="Exclude";all.Checked=mode!="Include"&&mode!="Exclude";
-                if(state.ContainsKey("ground") && state["ground"]!=null)groundMode.SelectedIndex=S((Dictionary<string,object>)state["ground"],"mode")=="Planes"?1:0;
+                if(state.ContainsKey("ground") && state["ground"]!=null)groundMode.SelectedIndex=S((Dictionary<string,object>)state["ground"],"mode")=="Desktop"?2:S((Dictionary<string,object>)state["ground"],"mode")=="Planes"?1:0;
                 initialized=true;RefreshChoices();
             }
             int actualSize=state.ContainsKey("modelSizeScale")?(int)Math.Round(Convert.ToDouble(state["modelSizeScale"])*100):100;
@@ -295,7 +296,7 @@ internal sealed partial class ControlPanel : Form
             pauseState["paused"]=true;if(RunStatus(pauseState)!=UiText.Get("手动暂停"))throw new Exception("Manual pause status failed.");
             pauseState["desktopPaused"]=true;if(RunStatus(pauseState)!=UiText.Get("桌面被遮挡，已自动暂停"))throw new Exception("Automatic pause status failed.");
             pauseState["desktopAvailable"]=false;if(RunStatus(pauseState)!=UiText.Get("等待桌面，已自动暂停"))throw new Exception("Desktop unavailable status failed.");
-            if(panel.groundMode.Items.Count!=2)throw new Exception("Ground mode choices missing.");
+            if(panel.groundMode.Items.Count!=3)throw new Exception("Ground mode choices missing.");
             panel.Send("ground",new Dictionary<string,object>{{"ground",new UmaDesktop.DesktopGroundConfig()}});
             if(S(panel.LatestCommand(),"action")!="ground")throw new Exception("Ground command missing.");
             pauseState["desktopPaused"]=false;pauseState["groundEditing"]=true;

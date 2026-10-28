@@ -11,6 +11,10 @@ namespace UmaDesktop
         private float groundWorldY;
         private bool groundCameraSaved;
         private Matrix4x4 originalProjection;
+        private Vector3 originalCameraPosition;
+        private Quaternion originalCameraRotation;
+        public float ViewElevation {get{return Ground!=null && Ground.IsDesktop?(float)GroundRoute.DesktopElevation:settings.CameraElevation;}}
+        public bool DesktopPlane {get{return Ground!=null && Ground.IsDesktop;}}
         public bool CustomGround {get{return Ground!=null;}}
         public float PortalOpacity {get{return Mathf.SmoothStep(0,1,Ground==null?DefaultPortalOpacity:(float)Ground.Opacity);}}
         public void AssignGround(DesktopGroundConfig config,int index,System.Random random,GroundRoute retained=null)
@@ -18,6 +22,7 @@ namespace UmaDesktop
             if(!groundCameraSaved)
             {
                 originalProjection=Camera.projectionMatrix;
+                originalCameraPosition=Camera.transform.position;originalCameraRotation=Camera.transform.rotation;
                 Vector3 up=Camera.transform.up,root=Model.transform.position;
                 groundWorldY=((FootViewport-.5f)*2*Camera.orthographicSize+Vector3.Dot(Camera.transform.position,up)-up.x*root.x-up.z*root.z)/up.y;
                 if(gaitFloors.ContainsKey(Player.Name))groundWorldY=gaitFloors[Player.Name];
@@ -26,9 +31,18 @@ namespace UmaDesktop
             }
             Ground=config==null||config.mode=="Default"?null:retained??new GroundRoute(config,index,Overlay.ScreenArea.width,Overlay.ScreenArea.height,random);
             GroundIndex=Ground==null?-1:index;GroundDepthScale=1;GroundFitScale=1;
+            AvoidanceVelocity=new GroundVector();desktopHeading.Reset(facingYaw);
+            Camera.transform.SetPositionAndRotation(originalCameraPosition,originalCameraRotation);
             Camera.projectionMatrix=originalProjection;Camera.ResetCullingMatrix();
+            if(DesktopPlane)
+            {
+                Vector3 offset=new Vector3(0,Mathf.Sin(ViewElevation*Mathf.Deg2Rad),Mathf.Cos(ViewElevation*Mathf.Deg2Rad))*5;
+                Camera.transform.position=Model.transform.position+offset;
+                Camera.transform.LookAt(Model.transform.position);
+                ConfigureDesktopPlane();
+            }
             if(Ground==null)return;
-            UpdateGroundPosition();ApplyGroundProjection();PlaceWindow();
+            ConstrainGroundFootprint();UpdateGroundPosition();ApplyGroundProjection();PlaceWindow();
         }
         private void UpdateGroundPosition()
         {
@@ -50,7 +64,7 @@ namespace UmaDesktop
                 // screen tangent, while retaining the model camera's fixed elevation.
                 GroundVector here=Ground.Foot,ahead=Ground.Screen(Ground.FacingPreview(5));
                 double dx=ahead.x-here.x,dy=ahead.y-here.y;
-                double elevation=Math.Max(.05,Math.Sin(settings.CameraElevation*Math.PI/180));
+                double elevation=Math.Max(.05,Math.Sin(ViewElevation*Math.PI/180));
                 return dx*dx+dy*dy<1e-10?facingYaw:(float)(Math.Atan2(-dx,dy/elevation)*180/Math.PI);
             }
         }

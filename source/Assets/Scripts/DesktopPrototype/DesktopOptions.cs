@@ -14,6 +14,7 @@ namespace UmaDesktop
         private string optionsAck;
         private void ApplyOptions(Command c)
         {
+            if(c.action=="desktopHost")settings.DesktopHostMode=persisted.DesktopHostMode=c.desktopHostMode=="Root"||c.desktopHostMode=="IconView"?c.desktopHostMode:"Auto";
             if(c.action=="actorLimit")ApplyActorLimit(c.maxActors);
             if(c.action=="avoidance")
             {settings.Avoid3DCollisions=persisted.Avoid3DCollisions=c.avoid3DCollisions;foreach(var a in actors)if(a.Ground!=null)a.Ground.ClearSteering();}

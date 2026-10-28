@@ -10,6 +10,7 @@ namespace UmaDesktop
         public string DataPath = DesktopProduct.DefaultDataPath;
         public int SettingsVersion = 5;
         public string UiLanguage = "";
+        public string DesktopHostMode = "Auto";
         public DesktopGroundConfig Ground = new DesktopGroundConfig();
         public string SelectionMode = "All";
         public int[] IncludeIds = new int[0], ExcludeIds = new int[0];
@@ -91,6 +92,7 @@ namespace UmaDesktop
         {
             // Desktop-only placement is mandatory; old AlwaysOnTop settings are ignored.
             AlwaysOnTop=false;
+            if(DesktopHostMode!="Root" && DesktopHostMode!="IconView")DesktopHostMode="Auto";
             if(Ground==null || GroundMap.Validate(Ground)!=null)Ground=new DesktopGroundConfig();
             MaxActors = DesktopLimits.Clamp(MaxActors);
             if (SelectionMode != "Include" && SelectionMode != "Exclude") SelectionMode = "All";

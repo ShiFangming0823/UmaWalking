@@ -25,7 +25,7 @@ namespace UmaDesktop
         public bool AutomaticSpecial;
         public int SpecialDeferrals, AutomaticSpecials;
         private Mesh envelopeMesh;
-        private float envelopeRadius;
+        private float envelopeRadius,envelopeTop=float.NegativeInfinity,envelopeBottom=float.PositiveInfinity;
         public bool Interaction, SpecialDone, Disposed;
         public int PartnerToken = -1, SpecialsStarted, SpecialsTrimmed, GaitsStarted;
         public DesktopPhase Phase;
@@ -52,6 +52,9 @@ namespace UmaDesktop
         private readonly RenderTexture[] readTargets = new RenderTexture[3];
         private readonly bool[] inFlight = new bool[3];
         private int pendingReads, submittedFrame, presentedFrame;
+        private readonly DesktopHeadingFilter desktopHeading=new DesktopHeadingFilter();
+        public float FacingYaw {get{return facingYaw;}}
+        public float RequestedGroundYaw {get{return GroundYaw;}}
         private float facingYaw, lowestSolePixel = float.PositiveInfinity;
         private Bounds[] footBounds;
         private Material presentationMaterial;
@@ -248,6 +251,9 @@ namespace UmaDesktop
             Expressions.Apply();
             FreezePosition();
             float yaw = !Interaction && Behavior == MiniBehavior.Special ? 0 : GroundYaw;
+            if(DesktopPlane && settings.Avoid3DCollisions && !Interaction && Behavior!=MiniBehavior.Special)
+                yaw=(float)desktopHeading.Filter(yaw);
+            else desktopHeading.Reset(yaw);
             facingYaw = Mathf.LerpAngle(facingYaw, yaw, 1 - Mathf.Exp(-12 * delta));
             Model.transform.rotation = Quaternion.Euler(0, facingYaw, 0);
             ConstrainGroundFootprint();ApplyGroundProjection();
@@ -386,6 +392,7 @@ namespace UmaDesktop
                     var point=bounds.center+Vector3.Scale(bounds.extents,new Vector3((corner&1)==0?-1:1,(corner&2)==0?-1:1,(corner&4)==0?-1:1));
                     var relative=matrix.MultiplyPoint3x4(point)-Model.transform.position;
                     envelopeRadius=Mathf.Max(envelopeRadius,Mathf.Sqrt(relative.x*relative.x+relative.z*relative.z));
+                    envelopeTop=Mathf.Max(envelopeTop,relative.y);envelopeBottom=Mathf.Min(envelopeBottom,relative.y);
                     if(entry.Name.Contains("_004_01_")) MeasurePairPoint(entry.Name,relative);
                 }
             }

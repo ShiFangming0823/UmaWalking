@@ -37,7 +37,7 @@ namespace UmaDesktop
         public readonly double[] h=new double[9];
         private readonly double[] inverse=new double[9];
         public readonly double Width,Depth;
-        public GroundMap(GroundSurface surface,double width,double height)
+        public GroundMap(GroundSurface surface,double width,double height,double elevation=10)
         {
             double[,] a=new double[8,9];
             for(int i=0;i<4;i++)
@@ -61,7 +61,7 @@ namespace UmaDesktop
             inverse[6]=h[3]*h[7]-h[4]*h[6];inverse[7]=h[1]*h[6]-h[0]*h[7];inverse[8]=h[0]*h[4]-h[1]*h[3];
             GroundVector n0=Project(0,1),n1=Project(1,1),far=Project(.5,0),near=Project(.5,1);
             Width=Math.Max(100,Distance(n0,n1));
-            Depth=Math.Max(100,Distance(far,near)/Math.Sin(10*Math.PI/180));
+            Depth=Math.Max(100,Distance(far,near)/Math.Sin(elevation*Math.PI/180));
         }
         public static double Distance(GroundVector a,GroundVector b){return Math.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
         private static GroundVector Transform(double[] m,double x,double y)
@@ -79,7 +79,7 @@ namespace UmaDesktop
         {return edge==0?new GroundVector(0,1):edge==1?new GroundVector(-1,0):edge==2?new GroundVector(0,-1):new GroundVector(1,0);}
         public static string Validate(DesktopGroundConfig config)
         {
-            if(config==null || config.mode=="Default")return null;
+            if(config==null || config.mode=="Default" || config.mode=="Desktop")return null;
             if(config.mode=="Line")
             {
                 if(config.line==null || config.line.Length!=2 || !PointValid(config.line[0]) || !PointValid(config.line[1]))return "请在屏幕内指定直线的两个端点。";
@@ -117,7 +117,15 @@ namespace UmaDesktop
     public sealed class GroundRoute
     {
         public readonly GroundMap Map;
-        public readonly bool IsLine;
+        public readonly bool IsLine,IsDesktop;
+        public int EntranceEdge {get{return IsLine?-1:surface.entrance.edge;}}
+        public int ExitEdge {get{return IsLine?-1:surface.exit.edge;}}
+        public const double DesktopElevation=30;
+        private double desktopWidth,desktopHeight,desktopLeft,desktopTop,desktopRight,desktopBottom;
+        private GroundVector[] desktopRegion;
+        private GroundVector desktopOutside;
+        private double desktopCrossingLength,desktopGateFraction;
+        public GroundVector[] DesktopRegion {get{return desktopRegion;}}
         public GroundVector Position,Target,Heading;
         public int Stage; // 0 entering, 1 active, 2 approaching exit, 3 crossing exit, 4 complete
         public double Opacity=1;
@@ -135,7 +143,7 @@ namespace UmaDesktop
         public double LastStepDistance {get;private set;}
         public GroundRoute(DesktopGroundConfig config,int index,double width,double height,Random random)
         {
-            this.random=random;IsLine=config.mode=="Line";
+            this.random=random;IsLine=config.mode=="Line";IsDesktop=config.mode=="Desktop";
             if(IsLine)
             {
                 lineA=new GroundVector(config.line[0].x*width,config.line[0].y*height);lineB=new GroundVector(config.line[1].x*width,config.line[1].y*height);
@@ -144,7 +152,15 @@ namespace UmaDesktop
             }
             else
             {
-                surface=config.surfaces[index];Map=new GroundMap(surface,width,height);
+                if(IsDesktop)
+                {
+                    desktopWidth=width;desktopHeight=height;
+                    surface=new GroundSurface {points=new[]{new GroundPoint(0,0),new GroundPoint(1,0),new GroundPoint(1,1),new GroundPoint(0,1)},
+                        entrance=new GroundGate {edge=random.Next(4),start=.15f,end=.85f},exit=new GroundGate {edge=random.Next(4),start=.15f,end=.85f}};
+                    desktopGateFraction=.15+.7*random.NextDouble();
+                }
+                else surface=config.surfaces[index];
+                Map=new GroundMap(surface,width,height,IsDesktop?DesktopElevation:10);
                 GroundVector p=Map.Gate(surface.entrance,random.NextDouble()),n=GroundMap.Inward(surface.entrance.edge);
                 Position=new GroundVector(p.x-n.x*.025,p.y-n.y*.025);Target=new GroundVector(p.x+n.x*.08,p.y+n.y*.08);
             }
@@ -174,8 +190,49 @@ namespace UmaDesktop
             Position=Map.Unproject(placed.x,placed.y);Target=Map.Unproject(target.x,target.y);
             SetHeading();RefreshOpacity();
         }
+        // A fullscreen orthographic plane has no user-defined gates. Its four edges
+        // are all eligible, and the actor supplies an asymmetric full-body inset.
+        public void SetDesktopBounds(double left,double top,double right,double bottom)
+        {
+            if(!IsDesktop)return;
+            bool initial=desktopRegion==null;
+            if(!initial && Math.Abs(left-desktopLeft)+Math.Abs(top-desktopTop)+Math.Abs(right-desktopRight)+Math.Abs(bottom-desktopBottom)<.01)return;
+            desktopLeft=left;desktopTop=top;desktopRight=right;desktopBottom=bottom;
+            desktopRegion=new[]{new GroundVector(left,top),new GroundVector(desktopWidth-right,top),
+                new GroundVector(desktopWidth-right,desktopHeight-bottom),new GroundVector(left,desktopHeight-bottom)};
+            if(Stage==0)
+            {
+                GroundVector edge=DesktopEdgePoint(surface.entrance.edge,desktopGateFraction);
+                GroundVector n=GroundMap.Inward(surface.entrance.edge);
+                double inset=Math.Min(30,Math.Min(desktopWidth-left-right,desktopHeight-top-bottom)*.1);
+                var target=new GroundVector(edge.x+n.x*inset,edge.y+n.y*inset);
+                if(initial)Position=Map.Unproject(DesktopOutsidePoint(surface.entrance.edge,edge).x,DesktopOutsidePoint(surface.entrance.edge,edge).y);
+                Target=Map.Unproject(target.x,target.y);
+                desktopCrossingLength=Metric(Position,Target);entryFadeDistance=desktopCrossingLength/3;
+            }
+            else if(Stage==1 || Stage==2)ConstrainFootprint(desktopRegion);
+            SetHeading();RefreshOpacity();
+        }
+        private GroundVector DesktopEdgePoint(int edge,double t)
+        {
+            double x=desktopLeft+(desktopWidth-desktopLeft-desktopRight)*t;
+            double y=desktopTop+(desktopHeight-desktopTop-desktopBottom)*t;
+            return edge==0?new GroundVector(x,desktopTop):edge==1?new GroundVector(desktopWidth-desktopRight,y):
+                edge==2?new GroundVector(x,desktopHeight-desktopBottom):new GroundVector(desktopLeft,y);
+        }
+        private GroundVector DesktopOutsidePoint(int edge,GroundVector p)
+        {
+            return edge==0?new GroundVector(p.x,-desktopBottom-8):edge==1?new GroundVector(desktopWidth+desktopLeft+8,p.y):
+                edge==2?new GroundVector(p.x,desktopHeight+desktopTop+8):new GroundVector(-desktopRight-8,p.y);
+        }
         private void RefreshOpacity()
         {
+            if(IsDesktop && desktopRegion!=null)
+            {
+                double remaining=Metric(Position,Target)/Math.Max(1,desktopCrossingLength);
+                Opacity=Stage==4?0:Stage==0?Math.Max(0,Math.Min(1,1-remaining)):Stage==3?Math.Max(0,Math.Min(1,remaining)):1;
+                return;
+            }
             // Only portal crossings fade; ordinary ground edges stay opaque.
             double interior=PortalInterior();
             Opacity=Stage==4?0:Stage==1 || Stage==2?1:Math.Max(0,Math.Min(1,interior/.035));
@@ -189,7 +246,13 @@ namespace UmaDesktop
 
         private void Wander()
         {
-            Target=IsLine?new GroundVector(Position.x<.5?.96:.04,0):new GroundVector(.09+random.NextDouble()*.82,.09+random.NextDouble()*.82);
+            if(IsDesktop && desktopRegion!=null)
+            {
+                double x=desktopLeft+(desktopWidth-desktopLeft-desktopRight)*(.04+.92*random.NextDouble());
+                double y=desktopTop+(desktopHeight-desktopTop-desktopBottom)*(.04+.92*random.NextDouble());
+                Target=Map.Unproject(x,y);
+            }
+            else Target=IsLine?new GroundVector(Position.x<.5?.96:.04,0):new GroundVector(.09+random.NextDouble()*.82,.09+random.NextDouble()*.82);
             SetHeading();
         }
         public void Avoid(){if(Stage==1)Wander();}
@@ -207,7 +270,7 @@ namespace UmaDesktop
         {
             // Give the visible portal ramp time to render even for a fast actor
             // or a narrow gate. Legacy geometry-only callers retain distance steps.
-            if(seconds>0 && fadeSeconds>0)
+            if(!IsDesktop && seconds>0 && fadeSeconds>0)
             {
                 if(Stage==0)distance=Math.Min(distance,entryFadeDistance*seconds/fadeSeconds);
                 else if(Stage==3 && !exitGateReached)
@@ -230,12 +293,14 @@ namespace UmaDesktop
             else if(Stage==2)
             {
                 Stage=3;
-                Target=exitPoint;
+                Target=IsDesktop?desktopOutside:exitPoint;
+                if(IsDesktop)desktopCrossingLength=Metric(Position,Target);
                 SetHeading();
             }
             else if(Stage==3)
             {
-                if(!exitGateReached){exitGateReached=true;GroundVector n=IsLine?new GroundVector(exitPoint.x<.5?1:-1,0):GroundMap.Inward(surface.exit.edge);Target=new GroundVector(exitPoint.x-n.x*.035,exitPoint.y-n.y*.035);SetHeading();}
+                if(IsDesktop){Stage=4;Opacity=0;}
+                else if(!exitGateReached){exitGateReached=true;GroundVector n=IsLine?new GroundVector(exitPoint.x<.5?1:-1,0):GroundMap.Inward(surface.exit.edge);Target=new GroundVector(exitPoint.x-n.x*.035,exitPoint.y-n.y*.035);SetHeading();}
                 else {Stage=4;Opacity=0;}
             }
             RefreshOpacity();
@@ -243,7 +308,14 @@ namespace UmaDesktop
         public void Retire()
         {
             if(Stage>=2)return;steering=null;Stage=2;exitGateReached=false;
-            if(IsLine){exitPoint=new GroundVector(Position.x<.5?0:1,0);Target=new GroundVector(exitPoint.x+(exitPoint.x<.5?.055:-.055),0);}
+            if(IsDesktop && desktopRegion!=null)
+            {
+                surface.exit.edge=random.Next(4);
+                GroundVector p=DesktopEdgePoint(surface.exit.edge,.15+.7*random.NextDouble());
+                Target=Map.Unproject(p.x,p.y);exitPoint=Target;
+                GroundVector outside=DesktopOutsidePoint(surface.exit.edge,p);desktopOutside=Map.Unproject(outside.x,outside.y);
+            }
+            else if(IsLine){exitPoint=new GroundVector(Position.x<.5?0:1,0);Target=new GroundVector(exitPoint.x+(exitPoint.x<.5?.055:-.055),0);}
             else
             {
                 exitPoint=Map.Gate(surface.exit,random.NextDouble());GroundVector n=GroundMap.Inward(surface.exit.edge);
@@ -264,7 +336,9 @@ namespace UmaDesktop
             GroundVector uv;
             if(IsLine){double dx=lineB.x-lineA.x,dy=lineB.y-lineA.y;uv=new GroundVector(((x-lineA.x)*dx+(y-lineA.y)*dy)/(lineLength*lineLength),0);}
             else uv=Map.Unproject(x,y);
-            if(uv.x<.04||uv.x>.96||(!IsLine&&(uv.y<.04||uv.y>.96)))return false;
+            if(IsDesktop && desktopRegion!=null)
+            {if(!DesktopFootprintMath.Contains(desktopRegion,new GroundVector(x,y)))return false;}
+            else if(uv.x<.04||uv.x>.96||(!IsLine&&(uv.y<.04||uv.y>.96)))return false;
             steering=null;Position=uv;Stage=1;Opacity=1;SetHeading();return true;
         }
     }

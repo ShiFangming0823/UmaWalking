@@ -14,7 +14,7 @@
 
 **[简体中文](#zh-cn) · [English](#english) · [日本語](#japanese)**
 
-Version **1.0.0** · Windows x64 · Standalone desktop application
+Version **1.1.0** · Windows x64 · Standalone desktop application
 
 <a id="zh-cn"></a>
 ## 简体中文
@@ -40,6 +40,7 @@ UmaWalking 是基于 [UmaViewer](https://github.com/katboi01/UmaViewer) 开发�
 - 步行／跑步随机循环、各角色独立速度、专属动作穿插播放、表情随动作状态随机选择；支持现有配套双人互动。
 - 单击角色可见区域即可立即请求专属动画；支持面板手动指定马娘上场、走向出口退场，以及更换当前服装。
 - 支持绘制**一维直线地面与二维平面地面**，对齐壁纸中的道路或平台，实现模型与壁纸的视觉融合；平面模式最多3块凸四边形，各有入口与出口。
+- 新增**全桌面正交平面**：无需绘制，角色可在整个桌面上下左右移动，位置远近不改变尺寸，从任意屏幕边缘出入场。
 - 可用鼠标拖动模型，按住时暂停该角色的动作，松开后恢复；限制在地面内，也能跨地面拖动。
 - 出入场和换装渐变、模型尺寸滑块；仅显示在 Explorer 桌面层，桌面完全被应用窗口遮挡时自动暂停。
 - **15／30／60／120 FPS**（默认30）、抗锯齿开关、默认关闭的三维地面避让（实验性）、强制重启与诊断文本复制。
@@ -49,7 +50,7 @@ UmaWalking 是基于 [UmaViewer](https://github.com/katboi01/UmaViewer) 开发�
 
 ### 开始使用
 
-1. 在本仓库 **Releases** 下载 `UmaWalking-v1.0.0-Windows-x64.zip`，完整解压到可写的本地目录。
+1. 在本仓库 **Releases** 下载 `UmaWalking-v1.1.0-Windows-x64.zip`，完整解压到可写的本地目录。
 2. 双击 **`Launch-UmaWalking.cmd`**。程序没有游戏数据时会显示控制面板；在「设置与诊断」→「选择数据目录…」选择上文的 `Persistent` 目录，保存后自动重启。
 3. 从任务栏或通知区域打开控制面板；关闭面板只会隐藏它。完全结束请点「退出程序」，或按 **Ctrl+Alt+Q**。
 
@@ -66,6 +67,7 @@ UmaWalking 是基于 [UmaViewer](https://github.com/katboi01/UmaViewer) 开发�
 | 拖动与大小 | 按住并拖动模型；模型动作冻结，松开恢复。用「模型大小」滑块统一调整大小。透明区域不会拦截桌面点击。 |
 | 直线地面 | 面板选「二维直线」，点「绘制 / 编辑地面」，在半透明画布上依次点击两个端点并保存。它描述一维路径。 |
 | 平面地面 | 面板选「三维四点地面」，按远左→远右→近右→近左绘制凸四边形，再在边缘各点两次设入口和出口。可添加最多3块；它描述二维平面的投影。 |
+| 全桌面正交地面 | 在「角色与地面」选择「全桌面 · 正交平面」，点击「应用全桌面」。无需设置入口、出口；移动时保持相同尺寸。 |
 | 性能／语言／数据 | 在「设置与诊断」中选择帧率、抗锯齿、语言及数据目录。避让为实验性功能，默认关闭，仅对平面地面生效。 |
 | 暂停／退出／重启 | Ctrl+Alt+P暂停或继续；Ctrl+Alt+N让最早入场者离场；Ctrl+Alt+Q退出。面板与托盘菜单均提供「强制重启」。 |
 
@@ -73,17 +75,19 @@ UmaWalking 是基于 [UmaViewer](https://github.com/katboi01/UmaViewer) 开发�
 
 只支持Windows主屏幕。绘制的是地面投影，不会自动识别壁纸中的墙、栏杆或前景遮挡；暂不支持楼梯、曲面或凹多边形。目前是独立桌面程序，不是Wallpaper Engine Web／Scene壁纸。现有中文历史说明已统一归档至 [docs](docs/README.md)。
 
+1.1.0 修复了部分 Windows 11 24H2 桌面结构下模型加载后不可见的问题；「设置与诊断」提供 Auto／Root／IconView 兼容模式。已在本机 Windows 10 完成回归，报告问题的 Win11 24H2 环境仍需用户复测。详见 [1.1.0 更新说明](docs/Release-1.1.0.md)。
+
 ### Bug反馈与诊断
 
 在「设置与诊断」点击 **「拷贝当前状态与日志」**，点击面板中的 **GitHub Issues · 提交问题**，或到本仓库 [Issues](https://github.com/ShiFangming0823/UmaWalking/issues) 新建Bug报告。请提供版本、Windows版本、CPU／GPU／内存、模型数量、帧率、预期行为、实际行为及复现步骤；必要时附截图和诊断文本。诊断包含地面、角色／动作、暂停原因、硬件和最近日志，默认隐藏本机路径，但请提交前自行检查用户名及其他个人信息。剪贴板不可用时查看程序目录 `DesktopLogs/diagnostic-report.txt`。**不要上传游戏数据包、提取的模型／动作或账号信息。** 程序不会自动上传报告。
 
 ### 更新、开机启动与配置保留
 
-「设置与诊断」顶部显示当前版本 **1.0.0**。勾选「随系统启动」后，本用户登录 Windows 时自动运行；取消勾选即可关闭。移动程序文件夹后请先手动启动新位置一次，以更新已启用的启动路径。
+「设置与诊断」顶部显示当前版本 **1.1.0**。勾选「随系统启动」后，本用户登录 Windows 时自动运行；取消勾选即可关闭。移动程序文件夹后请先手动启动新位置一次，以更新已启用的启动路径。
 
 默认每次启动时检查本仓库最新公开的正式 Release。发现较新版本时显示更新说明：「前往下载更新」打开对应 Release 页面；「跳过当前版本」仅略过该版本的自动提示；「跳过所有更新」关闭之后的自动检查。「检查更新」始终可以手动确认并重新显示已跳过版本的说明，也可重新勾选「启动时自动检查更新」。断网、GitHub 限流或尚无公开正式 Release 时不影响桌宠运行。
 
-游戏路径、性能、地面和角色选择等设置会独立保存到 `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`，更新偏好保存到同目录 `UserPreferences.json`。首次使用1.0.0会导入当前程序目录已有的配置；此后新版本优先继承用户配置，并保留 `.bak` 备份。**更新时先退出旧版，将新版解压到新文件夹，再启动一次；不要删除用户配置目录和游戏／精简素材目录。** 从旧测试版首次升级时，请将旧版 `DesktopSettings.json` 复制到1.0.0目录后再首次启动。详细发布与升级流程见 [更新说明](docs/Updates-and-Settings.md)。
+游戏路径、性能、地面和角色选择等设置会独立保存到 `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`，更新偏好保存到同目录 `UserPreferences.json`。首次使用1.0.0会导入当前程序目录已有的配置；此后新版本优先继承用户配置，并保留 `.bak` 备份。**更新时先退出旧版，将新版解压到新文件夹，再启动一次；不要删除用户配置目录和游戏／精简素材目录。** 从旧测试版首次升级时，请将旧版 `DesktopSettings.json` 复制到新版程序目录后再首次启动。详细发布与升级流程见 [更新说明](docs/Updates-and-Settings.md)。
 
 ### 性能
 
@@ -122,6 +126,7 @@ Currently, only the game-data acquisition procedure for the **Japanese DMM versi
 - Random walking/running loops, individual movement speeds, character-specific one-shots, state-based expressions, and supported paired interactions.
 - Click a visible character to request its special animation immediately; manually queue a chosen character, send a selected instance toward its exit, or change its outfit.
 - Draw a **one-dimensional line or a two-dimensional ground plane** to blend the models into your wallpaper. Up to 3 convex quadrilateral planes can have separate entrances and exits.
+- New **Full desktop · Orthographic** mode: no drawing required, movement across the desktop at a constant scale, with entry and exit along any screen edge.
 - Drag characters with the mouse: holding freezes that character's action; release resumes it. Placement stays on a ground and can cross between grounds.
 - Entry/exit and outfit fades, a size slider, desktop-layer attachment, and automatic pause while application windows completely cover the desktop.
 - **15/30/60/120 FPS**, default 30; anti-aliasing toggle; optional experimental plane collision avoidance, disabled by default; force restart and diagnostic-text copying.
@@ -131,7 +136,7 @@ Currently, only the game-data acquisition procedure for the **Japanese DMM versi
 
 ### Quick start and controls
 
-Download **`UmaWalking-v1.0.0-Windows-x64.zip`** from this repository's **Releases**, extract the entire archive into a writable local folder, and run **`Launch-UmaWalking.cmd`**. If data is not configured, use **Settings and diagnostics → Choose data folder…**, select `Persistent`, and let the app restart. No Unity/Python/Wallpaper Engine installation is required for the runtime.
+Download **`UmaWalking-v1.1.0-Windows-x64.zip`** from this repository's **Releases**, extract the entire archive into a writable local folder, and run **`Launch-UmaWalking.cmd`**. If data is not configured, use **Settings and diagnostics → Choose data folder…**, select `Persistent`, and let the app restart. No Unity/Python/Wallpaper Engine installation is required for the runtime.
 
 Open the panel from the taskbar or notification area. Closing the panel hides it; **Exit** ends the app.
 
@@ -144,6 +149,7 @@ Open the panel from the taskbar or notification area. Closing the panel hides it
 | Drag/size | Hold and drag to freeze and reposition that character; release resumes its action. Use the model-size slider for global scaling. Transparent pixels pass clicks through. |
 | Line ground | Choose the UI's “2D line” mode, open Draw/Edit ground, select two endpoints on the translucent canvas, and save. This defines a 1D path. |
 | Plane ground | Choose the UI's “3D four-point ground” mode. Click far-left→far-right→near-right→near-left; set an entrance and exit with two clicks along an edge for each. Up to 3 convex planes are supported. |
+| Full desktop | Select “Full desktop · Orthographic” and click “Apply full desktop”. No fixed entrance or exit; scale stays constant throughout the screen. |
 | Settings | Choose FPS, anti-aliasing, language, data folder, or extraction. Experimental avoidance is opt-in and applies only to plane grounds. |
 | Shortcuts | Ctrl+Alt+P: pause/resume. Ctrl+Alt+N: retire the oldest arrival. Ctrl+Alt+Q: quit. Force restart is available in the panel and tray menu. |
 
@@ -151,13 +157,15 @@ Walking/running is drawn at 3:1, usually for 10–24 seconds before a special. O
 
 Only the Windows primary monitor is supported. Drawn grounds do not detect wallpaper objects or provide foreground occlusion. Stairs, curved surfaces, and concave polygons are not yet supported. This is currently a standalone app, not a Wallpaper Engine Web/Scene wallpaper. Historical Chinese-language notes are organized under [docs](docs/README.md). Building and contributing are documented separately in [Build](docs/development/Build.md).
 
+Version 1.1.0 adds adaptive desktop parenting for the invisible-model issue reported on Windows 11 24H2. Settings includes Auto/Root/IconView compatibility choices. Windows 10 regression testing passed; the reporting 24H2 environment still requires confirmation. See [1.1.0 release notes](docs/Release-1.1.0.md).
+
 ### Updates, Windows startup, and settings
 
-The top of **Settings and diagnostics** displays version **1.0.0**. Enable **Start with Windows** to launch at Windows sign-in for your account; clear it to disable. After moving the application folder, start the new location once to refresh an already-enabled startup entry.
+The top of **Settings and diagnostics** displays version **1.1.0**. Enable **Start with Windows** to launch at Windows sign-in for your account; clear it to disable. After moving the application folder, start the new location once to refresh an already-enabled startup entry.
 
 By default, each launch checks the repository's latest public stable GitHub Release. A newer version opens a release-notes dialog. **Download update** opens that release page; **Skip this version** suppresses only that version's automatic prompt; **Skip all updates** disables automatic checks. **Check for updates** still works manually and can reopen skipped release notes. You can also re-enable startup checks. Offline access, API limits, and the absence of a public stable release do not prevent the desktop companion from running.
 
-Game paths, performance, grounds, and character settings are stored separately in `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`; update preferences are in `UserPreferences.json` alongside it. On first use, 1.0.0 imports an existing configuration from its application folder. Later versions prefer the saved user configuration and keep a `.bak` backup. **Exit the old app, extract the new version into a new folder, and start it; retain the user-profile directory and your full/compact game data.** For a first upgrade from a development build, copy its `DesktopSettings.json` into the 1.0.0 folder before launching for the first time. See [updates and settings](docs/Updates-and-Settings.md).
+Game paths, performance, grounds, and character settings are stored separately in `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`; update preferences are in `UserPreferences.json` alongside it. On first use, 1.0.0 imports an existing configuration from its application folder. Later versions prefer the saved user configuration and keep a `.bak` backup. **Exit the old app, extract the new version into a new folder, and start it; retain the user-profile directory and your full/compact game data.** For a first upgrade from a development build, copy its `DesktopSettings.json` into the new application folder before launching for the first time. See [updates and settings](docs/Updates-and-Settings.md).
 
 ### Bugs, diagnostics, and performance
 
@@ -175,6 +183,8 @@ Thanks to [uma walk](https://steamcommunity.com/sharedfiles/filedetails/?id=3758
 
 <a id="japanese"></a>
 ## 日本語
+
+1.1.0では全デスクトップ正投影モードと、Windows 11 24H2でモデルが表示されない問題への適応的な互換処理を追加しました。設定のAuto／Root／IconViewで切り替えられます。Windows 10で回帰テスト済みですが、報告者の24H2環境での再確認は未完了です。[更新内容](docs/Release-1.1.0.md)。
 
 UmaWalkingは[UmaViewer](https://github.com/katboi01/UmaViewer)を基に開発した、ミニウマ娘をリアルタイム描画するデスクトップアプリです。現在の壁紙の上にキャラクターを表示します。実行にはWallpaper Engine、Unity Editor、起動中のゲームクライアントは必要ありません。
 
@@ -197,6 +207,7 @@ UmaWalkingは[UmaViewer](https://github.com/katboi01/UmaViewer)を基に開発�
 - 歩行／走行ループ、個別速度、キャラ専用動作、状態に合わせたランダム表情、対応するペア演出。
 - 見えているモデルをクリックして専用動作をすぐ要求。キャラの入場予約、選択したモデルの出口への退場、衣装変更を手動操作。
 - 壁紙の道路や床に合わせて**一次元の直線地面と二次元の平面地面**を描画。凸四角形の平面は最大3枚で、それぞれ入口と出口を設定可能。
+- **全デスクトップ・正投影平面**を追加。描画設定は不要で、デスクトップ全域を一定の大きさで移動し、画面のどの辺からでも入退場します。
 - マウスでドラッグ可能。押している間はそのモデルの動作を停止し、放すと再開。地面内に配置され、別の地面にも移動可能。
 - 入退場・衣装変更のフェード、サイズスライダー、Explorerのデスクトップ層への表示、デスクトップ完全遮蔽時の自動停止。
 - **15／30／60／120 FPS**（既定30）、アンチエイリアス切替、既定OFFの平面衝突回避（実験的）、強制再起動と診断テキストコピー。
@@ -206,7 +217,7 @@ UmaWalkingは[UmaViewer](https://github.com/katboi01/UmaViewer)を基に開発�
 
 ### 起動と操作
 
-本リポジトリの**Releases**から**`UmaWalking-v1.0.0-Windows-x64.zip`**をダウンロードし、書き込み可能なローカルフォルダーへ全部展開して**`Launch-UmaWalking.cmd`**を実行します。データ未設定の場合は「設定と診断」→「データフォルダーを選択…」で`Persistent`を指定すると再起動します。実行版にUnityやPythonのインストールは不要です。
+本リポジトリの**Releases**から**`UmaWalking-v1.1.0-Windows-x64.zip`**をダウンロードし、書き込み可能なローカルフォルダーへ全部展開して**`Launch-UmaWalking.cmd`**を実行します。データ未設定の場合は「設定と診断」→「データフォルダーを選択…」で`Persistent`を指定すると再起動します。実行版にUnityやPythonのインストールは不要です。
 
 タスクバーまたは通知領域からパネルを開けます。パネルの閉じるボタンは非表示にするだけです。終了するには「終了」を選びます。
 
@@ -228,11 +239,11 @@ Windowsのプライマリモニターのみ対応します。壁紙の物体の�
 
 ### 更新・自動起動・設定の引き継ぎ
 
-「設定と診断」の上部に現在のバージョン **1.0.0** を表示します。「Windows起動時に自動起動」をONにすると、このWindowsアカウントのログイン時に起動します。OFFで解除できます。アプリの場所を移動した場合は、新しい場所から一度手動で起動すると、有効な自動起動パスも更新されます。
+「設定と診断」の上部に現在のバージョン **1.1.0** を表示します。「Windows起動時に自動起動」をONにすると、このWindowsアカウントのログイン時に起動します。OFFで解除できます。アプリの場所を移動した場合は、新しい場所から一度手動で起動すると、有効な自動起動パスも更新されます。
 
 既定では起動ごとに本リポジトリの最新の公開正式Releaseを確認します。新版があれば更新内容を表示します。「更新をダウンロード」は該当Releaseページを開き、「このバージョンをスキップ」はその版の自動通知のみを抑制し、「すべての更新をスキップ」は自動確認をOFFにします。「更新を確認」は常に手動で利用でき、スキップ済みの更新内容も再表示できます。起動時の自動確認をONに戻すこともできます。オフライン、API制限、正式Release未公開でもアプリ本体は動作します。
 
-ゲームパス・描画設定・地面・キャラ選択は `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`、更新設定は同じ場所の `UserPreferences.json` に保存します。1.0.0の初回起動はアプリフォルダーの既存設定を取り込み、以後は保存済みのユーザー設定を優先し、`.bak` バックアップを保持します。**旧版を終了して、新版を別フォルダーに展開・起動してください。ユーザー設定とゲーム／抽出素材のフォルダーは削除しないでください。** 開発版から初めて移行する場合は、最初の起動前に旧版の `DesktopSettings.json` を1.0.0のフォルダーへコピーしてください。[更新と設定](docs/Updates-and-Settings.md)も参照してください。
+ゲームパス・描画設定・地面・キャラ選択は `%LOCALAPPDATA%\UmaWalking\DesktopSettings.json`、更新設定は同じ場所の `UserPreferences.json` に保存します。1.0.0の初回起動はアプリフォルダーの既存設定を取り込み、以後は保存済みのユーザー設定を優先し、`.bak` バックアップを保持します。**旧版を終了して、新版を別フォルダーに展開・起動してください。ユーザー設定とゲーム／抽出素材のフォルダーは削除しないでください。** 開発版から初めて移行する場合は、最初の起動前に旧版の `DesktopSettings.json` を新版のアプリフォルダーへコピーしてください。[更新と設定](docs/Updates-and-Settings.md)も参照してください。
 
 ### 不具合報告・性能
 

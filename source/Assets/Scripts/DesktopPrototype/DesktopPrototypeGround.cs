@@ -25,7 +25,7 @@ namespace UmaDesktop
                 if(!a.CustomGround){a.X=a.Direction>0?a.Overlay.ScreenArea.xMin-a.SurfaceSize*.5f:a.Overlay.ScreenArea.xMax+a.SurfaceSize*.5f;}
                 a.TickPose(0);a.PlaceWindow();if(!desktopPaused)a.RenderFrame();
             }
-            groundOrder="";message=config.mode=="Default"?"已恢复屏幕底部地面。":config.mode=="Line"?"已应用二维直线地面。":"已应用 "+config.surfaces.Length+" 块三维地面。";
+            groundOrder="";message=config.mode=="Default"?"已恢复屏幕底部地面。":config.mode=="Line"?"已应用二维直线地面。":config.mode=="Desktop"?"已应用全桌面正交平面，角色从四周自由出入。":"已应用 "+config.surfaces.Length+" 块三维地面。";
             Record("Ground applied mode="+config.mode+" surfaces="+config.surfaces.Length);
         }
         private bool GroundSpecialClear(DesktopActor a)

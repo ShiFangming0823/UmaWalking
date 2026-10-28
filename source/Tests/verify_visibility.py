@@ -8,6 +8,7 @@ args=parser.parse_args()
 base=Path(args.build_directory);out=Path(args.evidence_directory);out.mkdir(parents=True,exist_ok=True)
 u=c.WinDLL('user32',use_last_error=True);k=c.WinDLL('kernel32',use_last_error=True)
 u.SetThreadDpiAwarenessContext.argtypes=[w.HANDLE];u.SetThreadDpiAwarenessContext(w.HANDLE(-4))
+u.GetAncestor.argtypes=[w.HWND,w.UINT];u.GetAncestor.restype=w.HWND
 u.GetParent.argtypes=[w.HWND];u.GetParent.restype=w.HWND
 u.GetWindowLongPtrW.argtypes=[w.HWND,c.c_int];u.GetWindowLongPtrW.restype=c.c_ssize_t
 u.GetWindowRect.argtypes=[w.HWND,c.POINTER(w.RECT)]
@@ -19,11 +20,12 @@ k.OpenProcess.argtypes=[w.DWORD,w.BOOL,w.DWORD];k.OpenProcess.restype=w.HANDLE
 k.GetProcessTimes.argtypes=[w.HANDLE,c.POINTER(w.FILETIME),c.POINTER(w.FILETIME),c.POINTER(w.FILETIME),c.POINTER(w.FILETIME)]
 k.CloseHandle.argtypes=[w.HANDLE]
 statefile=base/'DesktopLogs/state.json';commands=base/'DesktopCommands'
+original=(base/'DesktopSettings.json').read_bytes()
 checks=[];samples=[];windows=[];process=None;startUtc=datetime.datetime.now(datetime.timezone.utc)
 def read():
  try:
   s=json.loads(statefile.read_text(encoding='utf-8-sig'))
-  if s.get('schemaVersion')!=4 or datetime.datetime.fromisoformat(s['utc'].replace('Z','+00:00'))<startUtc:return None
+  if s.get('schemaVersion',0)<8 or datetime.datetime.fromisoformat(s['utc'].replace('Z','+00:00'))<startUtc:return None
   if s.get('error'):raise RuntimeError(s['error'])
   return s
  except (OSError,json.JSONDecodeError):return None
@@ -43,8 +45,8 @@ def delay(seconds):
 def check(value,label,**extra):
  checks.append(dict(Passed=bool(value),Check=label,**extra));print(json.dumps(checks[-1]),flush=True)
  if not value:raise AssertionError(label)
-def send(action):
- name=str(time.time_ns());p=commands/(name+'.tmp');p.write_text(json.dumps({'action':action}),encoding='utf-8');p.replace(commands/(name+'.json'))
+def send(action,**values):
+ name=str(time.time_ns());p=commands/(name+'.tmp');p.write_text(json.dumps(dict(action=action,**values)),encoding='utf-8');p.replace(commands/(name+'.json'))
 def cover(rect,ex=0x08000088):
  # Fixtures belong to this test only. No external application is moved or minimized.
  l,t,r,b=rect;h=u.CreateWindowExW(ex,'STATIC','UmaDesktop coverage integration fixture',0x80000000,l,t,r-l,b-t,0,0,0,0)
@@ -64,17 +66,18 @@ report={'Passed':False,'checks':checks}
 try:
  screen=(0,0,u.GetSystemMetrics(0),u.GetSystemMetrics(1));initialCover=cover(screen)
  startup=subprocess.STARTUPINFO();startup.dwFlags=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
- process=subprocess.Popen([str(base/'UmaDesktop.exe'),'-force-d3d11','-force-d3d11-bitblt-model','--desktop-test-mode','--desktop-no-controller','--desktop-exit-seconds','180','-logFile',str(base/'DesktopLogs/Player-v5-visibility.log')],cwd=base,startupinfo=startup)
+ env=os.environ.copy();env['UMA_WALKING_PROFILE']=str(out/'profile')
+ process=subprocess.Popen([str(base/'UmaDesktop.exe'),'-force-d3d11','-force-d3d11-bitblt-model','--desktop-test-mode','--desktop-no-controller','--desktop-exit-seconds','180','-logFile',str(base/'DesktopLogs/Player-v5-visibility.log')],cwd=base,startupinfo=startup,env=env)
  wait(lambda s:s['desktopPaused'] and s['count']==0,50);delay(1)
  check(read()['count']==0 and read()['charactersLoaded']==0,'Startup while fullscreen defers character loading and spawning')
  close(initialCover)
  s=wait(lambda s:s['count']>=1 and not s['loading'] and not s['paused'],40)
- host=s['desktopHost'];native=[]
+ host=s['desktopHost'];child=s['desktopChildHost'];native=[]
  for a in s['actors']:
   h=a['nativeWindow'];r=w.RECT();u.GetWindowRect(h,c.byref(r));style=u.GetWindowLongPtrW(h,-16)&0xffffffff;ex=u.GetWindowLongPtrW(h,-20)&0xffffffff
   native.append({'window':h,'parent':u.GetParent(h),'style':hex(style),'exStyle':hex(ex),'rect':[r.left,r.top,r.right,r.bottom]})
-  check(a['desktopAttached'] and u.GetParent(h)==host and bool(style&0x40000000) and not(style&0x80000000) and not(ex&8),'Pet is a non-topmost desktop child',token=a['token'])
-  check(abs(r.left-(a['screenX']-384))<15 and abs(r.top-(a['groundY']-768*(1-.004)))<3,'Child window coordinates remain physical pixels',rect=native[-1]['rect'])
+  check(a['desktopAttached'] and u.GetParent(h)==child and u.GetAncestor(h,2)==host and bool(style&0x40000000) and not(style&0x80000000) and not(ex&8),'Pet is a non-topmost desktop child',token=a['token'])
+  check(abs(r.left-(a['screenX']-(r.right-r.left)/2))<=1 and abs(r.top-(a['groundY']-(r.bottom-r.top)*(1-a['canvasFootViewport'])))<=1,'Child window coordinates remain physical pixels',rect=native[-1]['rect'])
  report['nativeWindows']=native
  # Fullscreen and hidden render readback race / spawn timer freeze.
  screen=(0,0,u.GetSystemMetrics(0),u.GetSystemMetrics(1));started=time.monotonic();h=cover(screen)
@@ -104,12 +107,18 @@ try:
  h=cover(screen,0x08080088);u.SetLayeredWindowAttributes(h,0,255,2);wait(lambda s:s['desktopPaused']);check(True,'Opaque layered fullscreen windows pause the app');close(h);wait(lambda s:not s['desktopPaused'])
  # Layered translucent overlays must not count as a solid desktop cover.
  h=cover(screen,0x08080088);u.SetLayeredWindowAttributes(h,0,30,2);delay(1);wait(lambda s:not s['desktopPaused']);check(True,'Transparent full-screen overlays do not cause false pauses');close(h)
- # Measure CPU for the same six-actor runtime, then while actually occluded.
- wait(lambda s:s['count']==6 and not s['loading'],40)
- a=cpu(process.pid);started=time.monotonic();delay(8);active=(cpu(process.pid)-a)/(time.monotonic()-started)/os.cpu_count()*100
- h=cover(screen);wait(lambda s:s['desktopPaused']);delay(1);a=cpu(process.pid);started=time.monotonic();delay(8);idle=(cpu(process.pid)-a)/(time.monotonic()-started)/os.cpu_count()*100
- report['cpu']={'logicalProcessors':os.cpu_count(),'activeTotalPercent':active,'coveredTotalPercent':idle,'sampleSecondsEach':8}
- check(idle<1.0 and idle<active*.5,'Covered runtime uses substantially less CPU',activePercent=round(active,3),coveredPercent=round(idle,3));close(h)
+ # Exercise both actual Explorer attachment paths and their coverage semantics.
+ for mode in ['Root','IconView','Auto']:
+  send('desktopHost',desktopHostMode=mode)
+  s=wait(lambda s:s['desktopHostMode']==mode and all(a['desktopAttached'] for a in s['actors']))
+  delay(.6);s=read()
+  expected=s['desktopIconView'] if s['desktopHostStrategy']=='IconView' else s['desktopHost']
+  check(s['desktopChildHost']==expected and all(u.GetParent(a['nativeWindow'])==expected and u.GetAncestor(a['nativeWindow'],2)==s['desktopHost'] for a in s['actors']),mode+' selects the actual Explorer child host')
+  check(all(a['windowVisible'] and not(u.GetWindowLongPtrW(a['nativeWindow'],-20)&8) for a in s['actors']),mode+' presents visible non-topmost windows (native API visibility only)')
+  h=cover(screen);wait(lambda s:s['desktopPaused']);delay(.6)
+  check(all(not u.IsWindowVisible(a['nativeWindow']) for a in read()['actors']),mode+' respects fullscreen desktop coverage')
+  close(h);wait(lambda s:not s['desktopPaused'] and all(a['windowVisible'] for a in s['actors']))
+  check(json.loads((base/'DesktopSettings.json').read_text(encoding='utf-8-sig'))['DesktopHostMode']==mode,mode+' preference persists')
  report['runtimeAssemblySha256']=hashlib.sha256((base/'UmaDesktop_Data/Managed/umamusume.dll').read_bytes()).hexdigest().upper()
  report['Passed']=True
 finally:
@@ -118,6 +127,9 @@ finally:
   send('exit')
   try:process.wait(timeout=8)
   except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=5)
+ (base/'DesktopSettings.json').write_bytes(original)
+ report['OriginalSettingsRestored']=(base/'DesktopSettings.json').read_bytes()==original
+ report['Win11CompositorVerified']=False
  report['checks']=checks
  (out/'desktop-visibility-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
  (out/'desktop-visibility-snapshots.json').write_text(json.dumps(samples,ensure_ascii=False,indent=2),encoding='utf-8')

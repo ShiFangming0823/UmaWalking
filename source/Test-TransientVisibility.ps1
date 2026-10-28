@@ -1,6 +1,6 @@
-﻿param([string]$BuildDirectory=(Join-Path $PSScriptRoot '..\build\UmaWalking'),[string]$EvidenceDirectory=(Join-Path $PWD 'transient-visibility-results'))
+param([string]$BuildDirectory=(Join-Path $PSScriptRoot '..\build\UmaWalking'),[string]$EvidenceDirectory=(Join-Path $PWD 'transient-visibility-results'))
 $ErrorActionPreference='Stop'
-if(Get-Process UmaDesktop -ErrorAction SilentlyContinue){throw 'Close UmaDesktop before running visibility integration tests.'}
+if(Get-Process UmaDesktop -ErrorAction SilentlyContinue | Where-Object {$_.Path -eq (Join-Path $BuildDirectory 'UmaDesktop.exe')}){throw 'Close UmaDesktop before running visibility integration tests.'}
 $fixtures=Join-Path $env:TEMP ('UmaDesktopTransientFixtures-'+[Guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($fixtures)|Out-Null
 try {

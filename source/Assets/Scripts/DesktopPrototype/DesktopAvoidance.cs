@@ -2,6 +2,23 @@ using System;
 
 namespace UmaDesktop
 {
+    // Display-only hysteresis for sub-step avoidance noise. Movement is always
+    // governed by the collision-validated solver; this never changes a path.
+    public sealed class DesktopHeadingFilter
+    {
+        private bool initialized;
+        private double accepted;
+        public static double Delta(double from,double to)
+        {double d=(to-from)%360;return d>180?d-360:d< -180?d+360:d;}
+        public void Reset(double yaw){accepted=yaw;initialized=true;}
+        public double Filter(double yaw)
+        {
+            if(!initialized)Reset(yaw);
+            if(Math.Abs(Delta(accepted,yaw))>=6)accepted=yaw;
+            return accepted;
+        }
+    }
+
     // Local, predictive disc avoidance on the horizontal floor. Coordinates are
     // screen X and screen Y / sin(camera elevation), never sprite rectangles.
     // At most ten actors: bounded angular samples need neither a navmesh nor threads.
@@ -13,7 +30,7 @@ namespace UmaDesktop
             public GroundVector Position, Desired, Previous;
             public GroundVector[] Region;
             public double Radius;
-            public bool Movable, Steer, Backtrack;
+            public bool Movable, Steer, Backtrack, StableSteering;
         }
         public static GroundVector Add(GroundVector a,GroundVector b){return new GroundVector(a.x+b.x,a.y+b.y);}
         public static GroundVector Sub(GroundVector a,GroundVector b){return new GroundVector(a.x-b.x,a.y-b.y);}
@@ -48,10 +65,23 @@ namespace UmaDesktop
                 var a=agents[i];if(!a.Movable)continue;
                 double speed=Length(a.Desired);if(speed<1e-8){result[i]=new GroundVector();continue;}
                 GroundVector best=new GroundVector();double score=double.MaxValue;
-                int samples=a.Steer?19:a.Backtrack?2:1;
+                int bank=a.Steer?19:a.Backtrack?2:1;
+                double previousSpeed=Length(a.Previous);
+                bool history=a.StableSteering && a.Steer && previousSpeed>Math.Max(1,speed*.02);
+                double oldAngle=history?Math.Atan2(a.Desired.x*a.Previous.y-a.Desired.y*a.Previous.x,Dot(a.Desired,a.Previous)):0;
+                double turn=Math.Min(Math.PI/4,120*Math.PI/180*delta);
+                int samples=bank+(history?4:0);
                 for(int k=0;k<=samples;k++)
                 {
                     double angle=k==samples?0:k==0?0:!a.Steer?Math.PI:(k%2==1?1:-1)*((k+1)/2)*20*Math.PI/180;
+                    // The old bank only offered angles relative to the goal. A
+                    // feasible heading could disappear on the next frame, making
+                    // actors alternate between adjacent 20-degree candidates.
+                    // Offer history and small continuous turns, then validate them
+                    // with exactly the same collision checks as every other step.
+                    if(history && k>=bank && k<samples)
+                        angle=k==bank?oldAngle:k==bank+1?oldAngle+Math.Max(-turn,Math.Min(turn,-oldAngle)):
+                            k==bank+2?oldAngle+turn:oldAngle-turn;
                     for(int slow=0;slow<(k==samples?1:2);slow++)
                     {
                         double factor=k==samples?0:slow==0?1:.5;
@@ -67,7 +97,17 @@ namespace UmaDesktop
                         bool safe=true;
                         for(int j=0;j<agents.Length;j++)if(Related(a,agents[j]) && (!Safe(a,candidate,agents[j],result[j],Math.Max(delta,1.1),8) || !Safe(a,candidate,agents[j],new GroundVector(),delta,0))){safe=false;break;}
                         if(!safe)continue;
-                        double cost=Length(Sub(candidate,a.Desired))/speed+.12*Length(Sub(candidate,a.Previous))/speed;
+                        double candidateSpeed=Length(candidate);
+                        double cost=Length(Sub(candidate,a.Desired))/speed;
+                        if(history && candidateSpeed>1)
+                        {
+                            double directionChange=Length(Sub(Mul(candidate,1/candidateSpeed),Mul(a.Previous,1/previousSpeed)));
+                            cost+=1.2*directionChange;
+                            // Keep converging toward the goal when that turn is
+                            // safe, rather than preserving a detour forever.
+                            if(directionChange<turn*.45 && Math.Abs(oldAngle)>turn*1.1)cost+=.04;
+                        }
+                        else cost+=.12*Length(Sub(candidate,a.Previous))/speed;
                         if(angle<0)cost+=.015;
                         // Waiting is a fallback, not cheaper than turning around.
                         if(Length(candidate)<speed*.05)cost+=1.4;

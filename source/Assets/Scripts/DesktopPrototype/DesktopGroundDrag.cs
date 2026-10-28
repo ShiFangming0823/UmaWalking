@@ -26,6 +26,7 @@ namespace UmaDesktop
         public static GroundVector Place(DesktopGroundConfig config,double width,double height,GroundVector desired,int current,out int index)
         {
             index=0;
+            if(config.mode=="Desktop")return new GroundVector(Math.Max(0,Math.Min(width,desired.x)),Math.Max(0,Math.Min(height,desired.y)));
             if(config.mode=="Line")
             {
                 GroundVector a=new GroundVector(config.line[0].x*width,config.line[0].y*height),b=new GroundVector(config.line[1].x*width,config.line[1].y*height);

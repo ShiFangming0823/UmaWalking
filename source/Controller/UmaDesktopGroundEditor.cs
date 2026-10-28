@@ -196,16 +196,60 @@ internal sealed class GroundEditor : Form
 
 internal sealed partial class ControlPanel
 {
-    private readonly ComboBox groundMode=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList,Width=115};
+    private readonly ComboBox groundMode=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList,Width=200,DropDownWidth=310};
+    private Button groundApply;
     private void AddGroundControls(TableLayoutPanel layout)
     {
-        var row=new FlowLayoutPanel {AutoSize=true,Dock=DockStyle.Fill};groundMode.Items.AddRange(new object[]{UiText.Get("二维直线"),UiText.Get("三维四点地面")});groundMode.SelectedIndex=0;
+        var row=new FlowLayoutPanel {AutoSize=true,Dock=DockStyle.Fill};groundMode.Items.AddRange(new object[]{UiText.Get("二维直线"),UiText.Get("三维四点地面"),UiText.Get("全桌面 · 正交平面")});groundMode.SelectedIndex=0;
         row.Controls.Add(new Label {Text=UiText.Get("地面"),AutoSize=true,Padding=new Padding(0,8,0,0)});row.Controls.Add(groundMode);
-        row.Controls.Add(Button(UiText.Get("绘制 / 编辑地面"),EditGround));row.Controls.Add(Button(UiText.Get("恢复屏幕底部"),()=>Send("ground",new Dictionary<string,object>{{"ground",new DesktopGroundConfig()}})));
+        groundApply=Button(UiText.Get("绘制 / 编辑地面"),EditGround);row.Controls.Add(groundApply);
+        groundMode.SelectedIndexChanged+=(s,e)=>RefreshGroundButton();row.Controls.Add(Button(UiText.Get("恢复底部"),()=>Send("ground",new Dictionary<string,object>{{"ground",new DesktopGroundConfig()}})));
         layout.RowCount=6;layout.Controls.Add(row,0,5);layout.SetColumnSpan(row,2);
     }
+    internal static void RunDesktopGroundTests(string root)
+    {
+        int checks=0;
+        using(var panel=new ControlPanel(root,0,false))
+        {
+            if(panel.groundMode.Items.Count!=3)throw new Exception("Expected three selectable ground modes");checks++;
+            foreach(string language in new[]{"zh","en","ja"})
+            {
+                UiText.Language=language;panel.ApplyUiLanguage();panel.groundMode.SelectedIndex=2;
+                if(panel.groundMode.Text!=UiText.Get("全桌面 · 正交平面") || panel.groundApply.Text!=UiText.Get("应用全桌面"))throw new Exception("Desktop mode not localized");checks++;
+                panel.Show();panel.WindowState=FormWindowState.Normal;Application.DoEvents();panel.PerformLayout();
+                var group=panel.actorLimitBox.Parent.Parent.Parent;
+                int limitBottom=group.PointToClient(panel.actorLimitBox.PointToScreen(new Point(0,panel.actorLimitBox.Height))).Y;
+                if(limitBottom>group.ClientSize.Height-5)throw new Exception("New ground controls clip the model-limit row in "+language);checks++;
+                if(panel.list.Height<100)throw new Exception("Character list clipped in "+language);checks++;
+                panel.EditGround();var command=panel.LatestCommand();
+                if(S(command,"action")!="ground" || S((Dictionary<string,object>)command["ground"],"mode")!="Desktop")throw new Exception("Desktop apply command failed");checks++;
+                panel.groundMode.SelectedIndex=0;
+                if(panel.groundApply.Text!=UiText.Get("绘制 / 编辑地面"))throw new Exception("Line drawing button was not restored");checks++;
+                panel.groundMode.SelectedIndex=1;
+                if(panel.groundApply.Text!=UiText.Get("绘制 / 编辑地面"))throw new Exception("Plane drawing button was not restored");checks++;
+            }
+            panel.groundMode.SelectedIndex=2;panel.Show();panel.WindowState=FormWindowState.Normal;Application.DoEvents();panel.PerformLayout();
+            if(panel.groundMode.Width<190 || panel.groundApply.Width<30)throw new Exception("Ground controls have no usable layout");checks++;
+            using(var preview=new Bitmap(panel.Width,panel.Height)){panel.DrawToBitmap(preview,new Rectangle(0,0,panel.Width,panel.Height));preview.Save(System.IO.Path.Combine(root,"desktop-ground-panel.png"));}
+            // The mode toggle must keep previously drawn grounds for later editing.
+            var commandFinal=panel.LatestCommand();var applied=(Dictionary<string,object>)commandFinal["ground"];
+            var saved=panel.ReadSavedSettings();
+            if(saved.ContainsKey("Ground"))
+            {var before=(Dictionary<string,object>)saved["Ground"];if(panel.json.Serialize(before["surfaces"])!=panel.json.Serialize(applied["surfaces"]))throw new Exception("Saved surfaces were discarded");checks++;}
+        }
+        System.IO.File.WriteAllText(System.IO.Path.Combine(root,"desktop-ground-controller-report.json"),new JavaScriptSerializer().Serialize(new{Passed=true,Checks=checks}));
+    }
+    private void RefreshGroundButton()
+    {if(groundApply!=null)groundApply.Text=UiText.Get(groundMode.SelectedIndex==2?"应用全桌面":"绘制 / 编辑地面");}
     private void EditGround()
     {
+        // This mode uses the entire desktop and needs no drawing or portal setup.
+        if(groundMode.SelectedIndex==2)
+        {
+            FlushModelSize();var current=ReadSavedSettings();DesktopGroundConfig full=new DesktopGroundConfig();
+            if(current.ContainsKey("Ground") && current["Ground"]!=null)full=json.Deserialize<DesktopGroundConfig>(json.Serialize(current["Ground"]));
+            full.mode="Desktop";Send("ground",new Dictionary<string,object>{{"ground",full}});return;
+        }
         Poll(true);FlushModelSize();DesktopGroundConfig config=new DesktopGroundConfig();
         if(state!=null && state.ContainsKey("ground"))config=json.Deserialize<DesktopGroundConfig>(json.Serialize(state["ground"]));
         Send("groundEditBegin");Hide();

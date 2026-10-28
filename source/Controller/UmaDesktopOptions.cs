@@ -12,6 +12,7 @@ using UmaDesktop;
 
 internal sealed partial class ControlPanel
 {
+    private readonly ComboBox hostModeBox=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList,Width=240};
     private readonly ComboBox fpsBox=new ComboBox {DropDownStyle=ComboBoxStyle.DropDownList,Width=160};
     private readonly CheckBox avoidanceBox=new CheckBox {AutoSize=true};
     private readonly CheckBox aaBox=new CheckBox {AutoSize=true};
@@ -47,16 +48,19 @@ internal sealed partial class ControlPanel
         layout.Controls.Add(extractionProgress);layout.Controls.Add(Button("取消提取",()=>{if(extractionCancellation!=null)extractionCancellation.Cancel();}));
         layout.Controls.Add(new Label {Text="问题诊断",AutoSize=true,Font=new Font(Font.FontFamily,14,FontStyle.Bold),Margin=new Padding(0,24,0,8)});
         layout.Controls.Add(Button("拷贝当前状态与日志",CopyDiagnostics));AddIssueLink(layout);
+        layout.Controls.Add(new Label {Text="桌面兼容模式（通常保持自动）",AutoSize=true});hostModeBox.Items.AddRange(new object[]{"Auto","Root","IconView"});layout.Controls.Add(hostModeBox);
+        layout.Controls.Add(new Label {Text="模型不显示时可尝试 Root 或 IconView；更改立即生效。",AutoSize=true,MaximumSize=new Size(560,0)});
         layout.Controls.Add(new Label {Text="包含设置、地面、角色动作、硬件与最近日志；默认隐藏本机路径。请同时描述复现步骤。",AutoSize=true,MaximumSize=new Size(560,0)});layout.Controls.Add(optionsMessage);
         var settings=ReadSavedSettings();string language=S(settings,"UiLanguage");
         if(language!="zh"&&language!="ja"&&language!="en"){language=System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;if(language!="ja"&&language!="zh")language="en";}
-        UiText.Language=language;syncingOptions=true;
+        UiText.Language=language;syncingOptions=true;hostModeBox.SelectedItem=new[]{"Root","IconView"}.Contains(S(settings,"DesktopHostMode"))?S(settings,"DesktopHostMode"):"Auto";
         languageBox.SelectedIndex=language=="ja"?1:language=="en"?2:0;
         int fps=settings.ContainsKey("FrameRate")?I(settings,"FrameRate"):30;fpsBox.SelectedItem=new[]{15,30,60,120}.Contains(fps)?fps:30;
         avoidanceBox.Checked=settings.ContainsKey("Avoid3DCollisions")&&Convert.ToBoolean(settings["Avoid3DCollisions"]);
         aaBox.Checked=!settings.ContainsKey("MsaaSamples")||I(settings,"MsaaSamples")>1;dataBox.Text=S(settings,"DataPath");
         if(DesktopProfile.IsLegacyPlaceholder(dataBox.Text,root))dataBox.Text=DesktopProduct.DefaultDataPath;syncingOptions=false;
         avoidanceBox.CheckedChanged+=(s,e)=>{if(!syncingOptions)Send("avoidance",new Dictionary<string,object>{{"avoid3DCollisions",avoidanceBox.Checked}});};
+        hostModeBox.SelectedIndexChanged+=(s,e)=>{if(!syncingOptions)Send("desktopHost",new Dictionary<string,object>{{"desktopHostMode",hostModeBox.SelectedItem.ToString()}});};
         fpsBox.SelectedIndexChanged+=(s,e)=>SavePerformance();aaBox.CheckedChanged+=(s,e)=>SavePerformance();
         languageBox.SelectedIndexChanged+=(s,e)=>{if(syncingOptions)return;UiText.Language=languageBox.SelectedIndex==1?"ja":languageBox.SelectedIndex==2?"en":"zh";ApplyUiLanguage();Send("language",new Dictionary<string,object>{{"language",UiText.Language}});Poll(true);};
     }
@@ -68,7 +72,7 @@ internal sealed partial class ControlPanel
         Action<Control> visit=null;visit=c=>{string original;if(!originalTexts.TryGetValue(c,out original)){original=c.Text;originalTexts[c]=original;}if(!(c is ComboBox)&&!(c is TextBox)&&!(c is ListBox)&&!(c is NumericUpDown))c.Text=L(original);foreach(Control child in c.Controls)visit(child);};
         visit(this);
         if(tray.ContextMenuStrip!=null)foreach(ToolStripItem item in tray.ContextMenuStrip.Items){string original;if(!originalMenus.TryGetValue(item,out original)){original=item.Text;originalMenus[item]=original;}item.Text=L(original);}
-        groundMode.Items[0]=L("二维直线");groundMode.Items[1]=L("三维四点地面");
+        groundMode.Items[0]=L("二维直线");groundMode.Items[1]=L("三维四点地面");groundMode.Items[2]=L("全桌面 · 正交平面");RefreshGroundButton();
         actorLimitBox.AccessibleName=L("模型上限数量");tray.Text=L("UmaWalking · 左键控制面板 / 右键菜单");optionsMessage.Text="";sizeLabel.Text=L("模型大小 ")+modelSize.Value+"%";RefreshChoices();UpdateEntryChoices();
     }
     private void PollOptions()
@@ -76,7 +80,7 @@ internal sealed partial class ControlPanel
         if(state==null)return;
         if(!optionsStateInitialized&&state.ContainsKey("frameRate"))
         {
-            syncingOptions=true;if(state.ContainsKey("avoid3DCollisions"))avoidanceBox.Checked=Convert.ToBoolean(state["avoid3DCollisions"]);int actual=I(state,"frameRate");fpsBox.SelectedItem=new[]{15,30,60,120}.Contains(actual)?actual:30;
+            syncingOptions=true;if(state.ContainsKey("desktopHostMode"))hostModeBox.SelectedItem=S(state,"desktopHostMode");if(state.ContainsKey("avoid3DCollisions"))avoidanceBox.Checked=Convert.ToBoolean(state["avoid3DCollisions"]);int actual=I(state,"frameRate");fpsBox.SelectedItem=new[]{15,30,60,120}.Contains(actual)?actual:30;
             aaBox.Checked=I(state,"msaaSamples")>1||(state.ContainsKey("useFxaa")&&Convert.ToBoolean(state["useFxaa"]));syncingOptions=false;optionsStateInitialized=true;
         }
         if(state.ContainsKey("activeDataPath")){string path=S(state,"activeDataPath");dataBox.Text=DesktopProfile.IsLegacyPlaceholder(path,root)?DesktopProduct.DefaultDataPath:path;}

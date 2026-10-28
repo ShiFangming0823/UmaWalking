@@ -24,7 +24,7 @@ checks=[];samples=[];windows=[];process=None;startUtc=datetime.datetime.now(date
 def read():
  try:
   s=json.loads(statefile.read_text(encoding='utf-8-sig'))
-  if s.get('schemaVersion')!=4 or datetime.datetime.fromisoformat(s['utc'].replace('Z','+00:00'))<startUtc:return None
+  if s.get('schemaVersion',0)<8 or datetime.datetime.fromisoformat(s['utc'].replace('Z','+00:00'))<startUtc:return None
   if s.get('error'):raise RuntimeError(s['error'])
   return s
  except (OSError,json.JSONDecodeError):return None
@@ -75,7 +75,8 @@ def overlay(exe,cls,seconds=5):
  ready.unlink();return p
 try:
  startup=subprocess.STARTUPINFO();startup.dwFlags=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
- process=subprocess.Popen([str(base/'UmaDesktop.exe'),'-force-d3d11','-force-d3d11-bitblt-model','--desktop-test-mode','--desktop-max-actors','1','--desktop-no-controller','--desktop-exit-seconds','130','-logFile',str(base/'DesktopLogs/Player-transient-visibility.log')],cwd=base,startupinfo=startup)
+ env=os.environ.copy();env["UMA_WALKING_PROFILE"]=str(out/"profile")
+ process=subprocess.Popen([str(base/'UmaDesktop.exe'),'-force-d3d11','-force-d3d11-bitblt-model','--desktop-test-mode','--desktop-max-actors','1','--desktop-no-controller','--desktop-exit-seconds','130','-logFile',str(base/'DesktopLogs/Player-transient-visibility.log')],cwd=base,startupinfo=startup,env=env)
  s=wait(lambda s:s['count']==1 and not s['loading'] and not s['paused'] and s['actors'][0]['presentedFrames']>5,45)
  check(s['switchEventHookInstalled'],'Real Alt+Tab WinEvent hook installs in the Unity runtime')
  check(not s['testIgnoresOcclusion'],'Visibility checks run without the test occlusion bypass')

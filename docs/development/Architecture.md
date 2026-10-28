@@ -20,3 +20,7 @@ Each visible actor is rendered to an offscreen target and composed into its own 
 Three-dimensional custom ground uses a quadrilateral mapping for positions and uniformly scaled upright actors. Entry and exit have explicit phases, and foot occupancy is constrained during movement/drag. A drag must cancel stale entry/exit path state before normal movement resumes. Actor capacity counts entering and departing actors, and manual queues must not exceed the configured cap by loading an extra actor early.
 
 The current runtime uses character render layers 20–29 to support a maximum of ten actors. Changes to the cap must consider masks, actor pooling, queues, Include outfit uniqueness, UI labels, diagnostics and tests together. Source filenames may retain UmaDesktop for compatibility; public project branding is UmaWalking.
+
+Version 1.1.0: the additional `Desktop` ground uses a fixed 30-degree orthographic camera, no perspective size scaling, whole-body bounds and random entry/exit on all four screen edges. See [Full-Desktop-Mode.md](Full-Desktop-Mode.md). Existing 1.0.0 archives remain unchanged.
+
+Desktop integration keeps top-level `Host` for Z-order coverage and resolves a separate `ChildHost` for native actor windows. Auto uses the visible icon view for an unredirected desktop root; Root/IconView are user overrides. See [Desktop-Compatibility.md](Desktop-Compatibility.md).
